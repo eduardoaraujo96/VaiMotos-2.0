@@ -23,7 +23,7 @@ import type { Ride } from '../../types';
 export function DriverRadar() {
   const { user } = useAuth();
   const { dark, toggle } = useThemeMode();
-  const { rides, makeOffer, driverBids } = useBidding({ viewer: user });
+  const { rides, makeOffer, driverBids, error } = useBidding({ viewer: user });
   const [online, setOnline] = useState(true);
   const [selected, setSelected] = useState<Ride | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +38,8 @@ export function DriverRadar() {
       await makeOffer(selected, amount, etaMinutes);
       setToast(`Oferta ${formatBRL(amount)} enviada. O passageiro compara em privado.`);
       setSelected(null);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Nao foi possivel enviar a oferta.');
     } finally {
       setSubmitting(false);
     }
@@ -142,6 +144,7 @@ export function DriverRadar() {
           onSubmit={handleSubmit}
         />
         <IonToast isOpen={Boolean(toast)} message={toast} duration={2600} onDidDismiss={() => setToast('')} />
+        <IonToast isOpen={Boolean(error)} message={error ?? ''} duration={2400} />
       </IonContent>
     </IonPage>
   );

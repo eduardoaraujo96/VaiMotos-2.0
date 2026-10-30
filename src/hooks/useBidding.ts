@@ -6,10 +6,14 @@ import {
   listBidsForDriver,
   listBidsForRide,
   listOpenRides,
+  loadBidsForDriver,
+  loadBidsForRide,
+  loadOpenRides,
   submitBid,
 } from '../services/bidding';
 import { biddingStore } from '../services/biddingStore';
-import { isSupabaseConfigured, supabase } from '../services/supabase';
+import { isSupabaseConfigured } from '../services/supabaseClient';
+import { subscribeToRadar, subscribeToRideBids } from '../services/supabaseService';
 
 interface UseBiddingOptions {
   viewer: User | null;
@@ -24,45 +28,54 @@ export function useBidding({ viewer, rideId }: UseBiddingOptions) {
   const [driverBids, setDriverBids] = useState<Bid[]>(() =>
     viewer?.role === 'driver' ? listBidsForDriver(viewer.id) : []
   );
+  const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  const refresh = useCallback(() => {
-    setRides(listOpenRides());
-    if (viewer && rideId) {
-      setBids(listBidsForRide(rideId, viewer));
-    } else {
-      setBids([]);
+  const refresh = useCallback(async () => {
+    try {
+      const open = await loadOpenRides();
+      setRides(open);
+      if (viewer && rideId) {
+        setBids(await loadBidsForRide(rideId, viewer));
+      } else {
+        setBids([]);
+      }
+      if (viewer?.role === 'driver') {
+        setDriverBids(await loadBidsForDriver(viewer.id));
+      } else {
+        setDriverBids([]);
+      }
+      setError(null);
+      setTick((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao atualizar o leilao.');
     }
-    setDriverBids(viewer?.role === 'driver' ? listBidsForDriver(viewer.id) : []);
-    setTick((value) => value + 1);
   }, [viewer, rideId]);
 
   useEffect(() => {
-    refresh();
-    const unsubscribe = biddingStore.subscribe(() => refresh());
+    void refresh();
+    const unsubscribe = biddingStore.subscribe(() => {
+      void refresh();
+    });
     return unsubscribe;
   }, [refresh]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return undefined;
-    const client = supabase;
-    const bidFilter = rideId
-      ? { event: '*' as const, schema: 'public', table: 'bids', filter: `ride_id=eq.${rideId}` }
-      : { event: '*' as const, schema: 'public', table: 'bids' };
-    const channel = client
-      .channel(`bidding:${rideId ?? 'radar'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => refresh())
-      .on('postgres_changes', bidFilter, () => refresh())
-      .subscribe();
-    return () => {
-      void client.removeChannel(channel);
-    };
+    if (!isSupabaseConfigured) return undefined;
+    if (rideId) {
+      return subscribeToRideBids(rideId, () => {
+        void refresh();
+      });
+    }
+    return subscribeToRadar(() => {
+      void refresh();
+    });
   }, [refresh, rideId]);
 
   const activeRide = useMemo(() => {
     const all = biddingStore.snapshot().rides;
-    return all.find((ride) => ride.id === rideId);
-  }, [rideId, tick]);
+    return rides.find((ride) => ride.id === rideId) ?? all.find((ride) => ride.id === rideId);
+  }, [rideId, rides, tick]);
 
   const visibleBids = useMemo(() => {
     if (!viewer) return [];
@@ -84,7 +97,7 @@ export function useBidding({ viewer, rideId }: UseBiddingOptions) {
 
   const makeOffer = useCallback(
     async (ride: Ride, amount: number, etaMinutes: number) => {
-      if (!viewer) throw new Error('not_authenticated');
+      if (!viewer) throw new Error('Entre para enviar uma oferta.');
       return submitBid({ ride, driver: viewer, amount, etaMinutes });
     },
     [viewer]
@@ -98,6 +111,7 @@ export function useBidding({ viewer, rideId }: UseBiddingOptions) {
     bids: visibleBids,
     ownBid,
     driverBids,
+    error,
     requestRide,
     makeOffer,
     chooseOffer,

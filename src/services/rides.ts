@@ -1,32 +1,21 @@
 import type { Ride } from '../types';
 import { mockRideHistory } from '../data/mock';
 import { listOpenRides } from './bidding';
-import { isSupabaseConfigured, supabase } from './supabase';
+import { isSupabaseConfigured } from './supabaseClient';
+import { fetchOpenRides, fetchRideHistory as fetchRideHistoryRemote } from './supabaseService';
 
 export async function fetchPendingRides(): Promise<Ride[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('rides')
-      .select('*')
-      .eq('status', 'bidding')
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      return data as Ride[];
-    }
+  if (isSupabaseConfigured) {
+    const result = await fetchOpenRides();
+    if (result.ok) return result.data;
   }
   return listOpenRides();
 }
 
 export async function fetchRideHistory(userId: string): Promise<Ride[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('rides')
-      .select('*')
-      .or(`passenger_id.eq.${userId},driver_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      return data as Ride[];
-    }
+  if (isSupabaseConfigured) {
+    const result = await fetchRideHistoryRemote(userId);
+    if (result.ok) return result.data;
   }
   return mockRideHistory.filter(
     (ride) => ride.passengerId === userId || ride.driverId === userId

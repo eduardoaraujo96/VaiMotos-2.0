@@ -24,7 +24,7 @@ export function PassengerOffers() {
   const { rideId } = useParams<{ rideId: string }>();
   const { user } = useAuth();
   const history = useHistory();
-  const { activeRide, bids, chooseOffer } = useBidding({ viewer: user, rideId });
+  const { activeRide, bids, chooseOffer, error } = useBidding({ viewer: user, rideId });
   const [toast, setToast] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -46,6 +46,8 @@ export function PassengerOffers() {
       await chooseOffer(activeRide, bid);
       setToast(`${bid.driverName} aceito por ${formatBRL(bid.amount)}.`);
       window.setTimeout(() => history.replace('/passenger/home'), 1200);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Nao foi possivel aceitar a oferta.');
     } finally {
       setBusyId(null);
     }
@@ -160,6 +162,7 @@ export function PassengerOffers() {
           </div>
         ))}
         <IonToast isOpen={Boolean(toast)} message={toast} duration={2200} onDidDismiss={() => setToast('')} />
+        <IonToast isOpen={Boolean(error)} message={error ?? ''} duration={2400} />
       </IonContent>
     </IonPage>
   );

@@ -2,7 +2,16 @@ import type { Bid, Ride, User } from '../types';
 import { mockDrivers } from '../data/mock';
 import { avatarDataUri } from '../utils/format';
 import { biddingStore } from './biddingStore';
-import { isSupabaseConfigured, supabase } from './supabase';
+import { AppError } from './errors';
+import { isSupabaseConfigured } from './supabaseClient';
+import {
+  acceptDriverBid,
+  createRide,
+  fetchBidsForDriver,
+  fetchBidsForRide,
+  fetchOpenRides,
+  submitBlindBid,
+} from './supabaseService';
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -16,6 +25,13 @@ export async function createRideRequest(input: {
   estimatedMinutes: number;
   distanceKm: number;
 }): Promise<Ride> {
+  if (isSupabaseConfigured) {
+    const result = await createRide(input);
+    if (!result.ok) throw new AppError(result.error.code, result.error.message);
+    biddingStore.publish({ type: 'ride.created', ride: result.data });
+    return result.data;
+  }
+
   const ride: Ride = {
     id: uid('ride'),
     passengerId: input.passenger.id,
@@ -29,27 +45,6 @@ export async function createRideRequest(input: {
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 90_000).toISOString(),
   };
-
-  if (isSupabaseConfigured && supabase) {
-    await supabase.from('rides').insert({
-      id: ride.id,
-      passenger_id: ride.passengerId,
-      origin_lat: ride.origin.lat,
-      origin_lng: ride.origin.lng,
-      origin_address: ride.origin.address,
-      origin_neighborhood: ride.origin.neighborhood,
-      dest_lat: ride.destination.lat,
-      dest_lng: ride.destination.lng,
-      dest_address: ride.destination.address,
-      dest_neighborhood: ride.destination.neighborhood,
-      suggested_price: ride.estimatedPrice,
-      estimated_minutes: ride.estimatedMinutes,
-      distance_km: ride.distanceKm,
-      status: 'bidding',
-      expires_at: ride.expiresAt,
-    });
-  }
-
   biddingStore.publish({ type: 'ride.created', ride });
   simulateIncomingBids(ride);
   return ride;
@@ -79,6 +74,18 @@ export async function submitBid(input: {
   amount: number;
   etaMinutes: number;
 }): Promise<Bid> {
+  if (isSupabaseConfigured) {
+    const result = await submitBlindBid({
+      rideId: input.ride.id,
+      driver: input.driver,
+      amount: input.amount,
+      etaMinutes: input.etaMinutes,
+    });
+    if (!result.ok) throw new AppError(result.error.code, result.error.message);
+    biddingStore.publish({ type: 'bid.created', bid: result.data });
+    return result.data;
+  }
+
   const driverMeta =
     mockDrivers.find((item) => item.id === input.driver.id) ??
     ({
@@ -104,47 +111,26 @@ export async function submitBid(input: {
     status: 'pending',
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
-
-  if (isSupabaseConfigured && supabase) {
-    await supabase.from('bids').upsert({
-      id: bid.id,
-      ride_id: bid.rideId,
-      driver_id: bid.driverId,
-      amount: bid.amount,
-      eta_minutes: bid.etaMinutes,
-      status: 'pending',
-    });
-  }
-
   biddingStore.publish({ type: existing ? 'bid.updated' : 'bid.created', bid });
   return bid;
 }
 
 export async function acceptBid(ride: Ride, bid: Bid): Promise<Ride> {
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase.rpc('accept_bid', { p_bid_id: bid.id });
-    if (data) {
-      const awarded: Ride = {
-        ...ride,
-        status: 'awarded',
-        driverId: bid.driverId,
-        acceptedBidId: bid.id,
-        finalPrice: bid.amount,
-      };
-      biddingStore.publish({ type: 'ride.updated', ride: awarded });
-      return awarded;
-    }
+  if (isSupabaseConfigured) {
+    const result = await acceptDriverBid(bid.id, ride, bid);
+    if (!result.ok) throw new AppError(result.error.code, result.error.message);
+    biddingStore.publish({ type: 'ride.updated', ride: result.data });
+    return result.data;
   }
 
-  const snapshot = biddingStore.snapshot();
-  snapshot.bids
-    .filter((item) => item.rideId === ride.id)
+  biddingStore
+    .snapshot()
+    .bids.filter((item) => item.rideId === ride.id)
     .forEach((item) => {
-      const next: Bid = {
-        ...item,
-        status: item.id === bid.id ? 'accepted' : 'rejected',
-      };
-      biddingStore.publish({ type: 'bid.updated', bid: next });
+      biddingStore.publish({
+        type: 'bid.updated',
+        bid: { ...item, status: item.id === bid.id ? 'accepted' : 'rejected' },
+      });
     });
 
   const awarded: Ride = {
@@ -174,4 +160,25 @@ export function listBidsForRide(rideId: string, viewer: User): Bid[] {
 
 export function listBidsForDriver(driverId: string): Bid[] {
   return biddingStore.snapshot().bids.filter((bid) => bid.driverId === driverId);
+}
+
+export async function loadOpenRides(): Promise<Ride[]> {
+  if (!isSupabaseConfigured) return listOpenRides();
+  const result = await fetchOpenRides();
+  if (!result.ok) return listOpenRides();
+  return result.data;
+}
+
+export async function loadBidsForRide(rideId: string, viewer: User): Promise<Bid[]> {
+  if (!isSupabaseConfigured) return listBidsForRide(rideId, viewer);
+  const result = await fetchBidsForRide(rideId, viewer);
+  if (!result.ok) return listBidsForRide(rideId, viewer);
+  return result.data;
+}
+
+export async function loadBidsForDriver(driverId: string): Promise<Bid[]> {
+  if (!isSupabaseConfigured) return listBidsForDriver(driverId);
+  const result = await fetchBidsForDriver(driverId);
+  if (!result.ok) return listBidsForDriver(driverId);
+  return result.data;
 }
