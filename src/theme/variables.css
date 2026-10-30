@@ -1,0 +1,88 @@
+:root {
+  --ion-font-family: 'Outfit', system-ui, sans-serif;
+  --ion-color-primary: #ff6b00;
+  --ion-color-primary-rgb: 255, 107, 0;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #e05e00;
+  --ion-color-primary-tint: #ff7a1a;
+
+  --ion-color-secondary: #1a1a2e;
+  --ion-color-secondary-rgb: 26, 26, 46;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #171728;
+  --ion-color-secondary-tint: #313143;
+
+  --ion-color-success: #00c853;
+  --ion-color-success-rgb: 0, 200, 83;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #00b049;
+  --ion-color-success-tint: #1ace64;
+
+  --ion-color-warning: #ffb300;
+  --ion-color-danger: #ef4444;
+  --ion-color-medium: #8b8b9a;
+  --ion-color-light: #f4f4f7;
+
+  --ion-background-color: #f6f4f1;
+  --ion-background-color-rgb: 246, 244, 241;
+  --ion-text-color: #1a1a2e;
+  --ion-text-color-rgb: 26, 26, 46;
+  --ion-toolbar-background: #ffffff;
+  --ion-item-background: #ffffff;
+  --ion-card-background: #ffffff;
+  --ion-tab-bar-background: #ffffff;
+
+  --moto-orange: #ff6b00;
+  --moto-navy: #1a1a2e;
+  --moto-dark: #0f0f14;
+  --moto-map: #dce8d4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ion-background-color: #0f0f14;
+    --ion-background-color-rgb: 15, 15, 20;
+    --ion-text-color: #f4f4f7;
+    --ion-text-color-rgb: 244, 244, 247;
+    --ion-toolbar-background: #16161d;
+    --ion-item-background: #1a1a22;
+    --ion-card-background: #1a1a22;
+    --ion-tab-bar-background: #16161d;
+    --moto-map: #1e2a24;
+  }
+}
+
+body.dark {
+  --ion-background-color: #0f0f14;
+  --ion-background-color-rgb: 15, 15, 20;
+  --ion-text-color: #f4f4f7;
+  --ion-text-color-rgb: 244, 244, 247;
+  --ion-toolbar-background: #16161d;
+  --ion-item-background: #1a1a22;
+  --ion-card-background: #1a1a22;
+  --ion-tab-bar-background: #16161d;
+  --moto-map: #1e2a24;
+}
+
+body {
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+
+ion-button {
+  --border-radius: 14px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+ion-card {
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(15, 15, 20, 0.08);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}

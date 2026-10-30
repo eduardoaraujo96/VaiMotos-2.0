@@ -1,0 +1,7 @@
+{
+  "name": "VaiMoto",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
