@@ -1,13 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { User, UserRole } from '../types';
-import { getStoredUser, loginWithRole, logout as logoutService } from '../services/auth';
+import type { ProfileUpdatePayload, SignupPayload, User } from '../types';
+import { logout as logoutService, restoreSession, signIn, signUp, updateCurrentUser } from '../services/auth';
 
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (role: UserRole, name?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (payload: SignupPayload) => Promise<User>;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<User>;
   logout: () => Promise<void>;
 }
 
@@ -18,14 +20,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setUser(getStoredUser());
-    setIsLoading(false);
+    void restoreSession()
+      .then((session) => setUser(session))
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const login = useCallback(async (role: UserRole, name?: string) => {
-    const next = await loginWithRole(role, name);
+  const login = useCallback(async (email: string, password: string) => {
+    const next = await signIn(email, password);
     setUser(next);
+    return next;
   }, []);
+
+  const register = useCallback(async (payload: SignupPayload) => {
+    const next = await signUp(payload);
+    setUser(next);
+    return next;
+  }, []);
+
+  const updateProfile = useCallback(
+    async (payload: ProfileUpdatePayload) => {
+      if (!user) throw new Error('not_authenticated');
+      const next = await updateCurrentUser(user, payload);
+      setUser(next);
+      return next;
+    },
+    [user]
+  );
 
   const logout = useCallback(async () => {
     await logoutService();
@@ -38,9 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(user),
       isLoading,
       login,
+      register,
+      updateProfile,
       logout,
     }),
-    [user, isLoading, login, logout]
+    [user, isLoading, login, register, updateProfile, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

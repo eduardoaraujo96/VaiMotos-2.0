@@ -2,36 +2,38 @@ import { useState } from 'react';
 import {
   IonButton,
   IonContent,
-  IonIcon,
   IonInput,
   IonItem,
+  IonLoading,
   IonPage,
-  IonSegment,
-  IonSegmentButton,
-  IonLabel,
   IonToast,
 } from '@ionic/react';
-import { personOutline, bicycleOutline } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
 import { BrandMark } from '../components/shared/BrandMark';
 import { useAuth } from '../contexts/AuthContext';
-import type { UserRole } from '../types';
+import { isValidEmail } from '../utils/masks';
 
 export function LoginPage() {
   const { login } = useAuth();
   const history = useHistory();
-  const [role, setRole] = useState<UserRole>('passenger');
-  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const valid = isValidEmail(email) && password.length >= 6;
+
   const handleLogin = async () => {
+    if (!valid) {
+      setError('Informe um e-mail valido e senha com 6+ caracteres.');
+      return;
+    }
     setBusy(true);
     try {
-      await login(role, name || undefined);
-      history.replace(role === 'driver' ? '/driver' : '/passenger');
-    } catch {
-      setError('Nao foi possivel entrar. Tente novamente.');
+      const user = await login(email, password);
+      history.replace(user.role === 'driver' ? '/driver' : '/passenger');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nao foi possivel entrar.');
     } finally {
       setBusy(false);
     }
@@ -48,46 +50,39 @@ export function LoginPage() {
             <span style={{ color: '#FF6B00' }}>Va de moto.</span>
           </h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--ion-color-medium)' }}>
-            Um app so. O perfil define sua experiencia.
+            Entre com sua conta. O app muda sozinho para Passageiro ou Mototaxista.
           </p>
 
-          <div className="mt-8">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--ion-color-medium)' }}>
-              Entrar como
-            </div>
-            <IonSegment
-              value={role}
-              onIonChange={(e) => setRole((e.detail.value as UserRole) || 'passenger')}
-            >
-              <IonSegmentButton value="passenger">
-                <IonIcon icon={personOutline} />
-                <IonLabel>Passageiro</IonLabel>
-              </IonSegmentButton>
-              <IonSegmentButton value="driver">
-                <IonIcon icon={bicycleOutline} />
-                <IonLabel>Mototaxista</IonLabel>
-              </IonSegmentButton>
-            </IonSegment>
-          </div>
-
-          <IonItem className="mt-6 rounded-2xl" lines="none">
+          <IonItem className="mt-8 rounded-2xl" lines="none">
             <IonInput
-              label="Nome (opcional)"
+              type="email"
+              label="E-mail"
               labelPlacement="stacked"
-              placeholder={role === 'driver' ? 'Carlos Mendes' : 'Ana Ribeiro'}
-              value={name}
-              onIonInput={(e) => setName(String(e.detail.value ?? ''))}
+              placeholder="voce@email.com"
+              value={email}
+              onIonInput={(e) => setEmail(String(e.detail.value ?? ''))}
+            />
+          </IonItem>
+          <IonItem className="mt-3 rounded-2xl" lines="none">
+            <IonInput
+              type="password"
+              label="Senha"
+              labelPlacement="stacked"
+              placeholder="Minimo 6 caracteres"
+              value={password}
+              onIonInput={(e) => setPassword(String(e.detail.value ?? ''))}
             />
           </IonItem>
 
           <IonButton className="mt-6" expand="block" size="large" onClick={handleLogin} disabled={busy}>
-            {busy ? 'Entrando...' : 'Continuar'}
+            Entrar
           </IonButton>
-          <p className="mt-4 text-center text-xs" style={{ color: 'var(--ion-color-medium)' }}>
-            Demo: abra outra aba como Mototaxista para enviar uma oferta cega.
-          </p>
+          <IonButton className="mt-2" expand="block" fill="outline" routerLink="/signup">
+            Criar conta
+          </IonButton>
         </div>
-        <IonToast isOpen={Boolean(error)} message={error} duration={2200} onDidDismiss={() => setError('')} />
+        <IonLoading isOpen={busy} message="Entrando..." />
+        <IonToast isOpen={Boolean(error)} message={error} duration={2600} onDidDismiss={() => setError('')} />
       </IonContent>
     </IonPage>
   );

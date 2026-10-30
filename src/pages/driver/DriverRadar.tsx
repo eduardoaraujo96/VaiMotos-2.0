@@ -12,6 +12,7 @@ import {
   IonToolbar,
 } from '@ionic/react';
 import { moonOutline, radioOutline, sunnyOutline } from 'ionicons/icons';
+import { RoleBadge } from '../../components/auth/RoleBadge';
 import { BidPriceModal } from '../../components/driver/BidPriceModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useThemeMode } from '../../hooks/useThemeMode';
@@ -46,7 +47,9 @@ export function DriverRadar() {
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar>
-          <IonTitle>Radar</IonTitle>
+          <IonTitle>
+            Radar {user ? <RoleBadge role={user.role} /> : null}
+          </IonTitle>
           <IonButtons slot="end">
             <IonButton onClick={toggle}>
               <IonIcon icon={dark ? sunnyOutline : moonOutline} />

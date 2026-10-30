@@ -10,6 +10,16 @@ export type RideStatus =
 
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 
+export type VehicleStatus = 'pending' | 'active' | 'rejected';
+
+export type CnhStatus = 'pending' | 'valid' | 'expired';
+
+export interface SavedLocation {
+  id: string;
+  label: string;
+  address: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -18,6 +28,18 @@ export interface User {
   role: UserRole;
   avatarUrl?: string;
   rating: number;
+  homeAddress?: string;
+  workAddress?: string;
+  savedLocations?: SavedLocation[];
+  plate?: string;
+  vehicleModel?: string;
+  vehicleStatus?: VehicleStatus;
+  cnhNumber?: string;
+  cnhStatus?: CnhStatus;
+  isOnline?: boolean;
+  todayEarnings?: number;
+  todayRides?: number;
+  color?: string;
 }
 
 export interface DriverProfile extends User {
@@ -72,4 +94,29 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+export interface SignupPayload {
+  email: string;
+  password: string;
+  name: string;
+  phone: string;
+  role: UserRole;
+  avatarFile?: File | null;
+  homeAddress?: string;
+  workAddress?: string;
+  plate?: string;
+  vehicleModel?: string;
+  cnhNumber?: string;
+}
+
+export interface ProfileUpdatePayload {
+  name: string;
+  phone: string;
+  homeAddress?: string;
+  workAddress?: string;
+  plate?: string;
+  vehicleModel?: string;
+  cnhNumber?: string;
+  avatarFile?: File | null;
 }

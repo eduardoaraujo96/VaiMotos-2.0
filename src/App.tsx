@@ -4,6 +4,7 @@ import { Redirect, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/shared/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
 import { PassengerTabs } from './layouts/PassengerTabs';
 import { DriverTabs } from './layouts/DriverTabs';
 
@@ -18,6 +19,9 @@ function AppRoutes() {
       <IonRouterOutlet>
         <Route exact path="/login">
           {isAuthenticated ? <Redirect to={home} /> : <LoginPage />}
+        </Route>
+        <Route exact path="/signup">
+          {isAuthenticated ? <Redirect to={home} /> : <SignupPage />}
         </Route>
         <ProtectedRoute path="/passenger" role="passenger">
           <PassengerTabs />

@@ -12,6 +12,7 @@ import {
 } from '@ionic/react';
 import { moonOutline, sunnyOutline } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
+import { RoleBadge } from '../../components/auth/RoleBadge';
 import { MapCanvas } from '../../components/shared/MapCanvas';
 import { RideRequestCard } from '../../components/passenger/RideRequestCard';
 import { useAuth } from '../../contexts/AuthContext';
@@ -68,7 +69,10 @@ export function PassengerHome() {
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar>
-          <IonTitle>Ola, {user?.name.split(' ')[0]}</IonTitle>
+          <IonTitle>
+            Ola, {user?.name.split(' ')[0]}{' '}
+            {user ? <RoleBadge role={user.role} /> : null}
+          </IonTitle>
           <IonButtons slot="end">
             <IonButton onClick={toggle}>
               <IonIcon icon={dark ? sunnyOutline : moonOutline} />
