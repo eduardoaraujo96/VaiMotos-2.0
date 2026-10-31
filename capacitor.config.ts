@@ -8,9 +8,12 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     backgroundColor: '#0F0F14',
   },
+  server: {
+    androidScheme: 'https',
+  },
   plugins: {
     Geolocation: {
-      timeout: 15000,
+      timeout: 20000,
     },
   },
 };

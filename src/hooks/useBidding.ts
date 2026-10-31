@@ -9,6 +9,7 @@ import {
   loadBidsForDriver,
   loadBidsForRide,
   loadOpenRides,
+  loadRideById,
   submitBid,
 } from '../services/bidding';
 import { biddingStore } from '../services/biddingStore';
@@ -34,7 +35,12 @@ export function useBidding({ viewer, rideId }: UseBiddingOptions) {
   const refresh = useCallback(async () => {
     try {
       const open = await loadOpenRides();
-      setRides(open);
+      if (rideId) {
+        const current = await loadRideById(rideId);
+        setRides(current ? [current, ...open.filter((ride) => ride.id !== current.id)] : open);
+      } else {
+        setRides(open);
+      }
       if (viewer && rideId) {
         setBids(await loadBidsForRide(rideId, viewer));
       } else {

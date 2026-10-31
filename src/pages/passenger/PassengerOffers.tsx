@@ -45,7 +45,7 @@ export function PassengerOffers() {
     try {
       await chooseOffer(activeRide, bid);
       setToast(`${bid.driverName} aceito por ${formatBRL(bid.amount)}.`);
-      window.setTimeout(() => history.replace('/passenger/home'), 1200);
+      window.setTimeout(() => history.replace(`/corrida/${activeRide.id}`), 600);
     } catch (err) {
       setToast(err instanceof Error ? err.message : 'Nao foi possivel aceitar a oferta.');
     } finally {

@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { PassengerTabs } from './layouts/PassengerTabs';
 import { DriverTabs } from './layouts/DriverTabs';
+import { RideTrip } from './pages/shared/RideTrip';
 
 setupIonicReact({ mode: 'md' });
 
@@ -23,6 +24,9 @@ function AppRoutes() {
         <Route exact path="/signup">
           {isAuthenticated ? <Redirect to={home} /> : <SignupPage />}
         </Route>
+        <ProtectedRoute exact path="/corrida/:rideId">
+          <RideTrip />
+        </ProtectedRoute>
         <ProtectedRoute path="/passenger" role="passenger">
           <PassengerTabs />
         </ProtectedRoute>

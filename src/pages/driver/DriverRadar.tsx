@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useHistory } from 'react-router-dom';
 import {
   IonBadge,
   IonButton,
@@ -25,6 +26,7 @@ import type { Ride } from '../../types';
 
 export function DriverRadar() {
   const { user } = useAuth();
+  const history = useHistory();
   const { dark, toggle } = useThemeMode();
   const { rides, makeOffer, driverBids, error } = useBidding({ viewer: user });
   const [online, setOnline] = useState(true);
@@ -43,7 +45,15 @@ export function DriverRadar() {
   } = useGeolocation({ enabled: false });
 
   const myBids = driverBids;
+  const openedRide = useRef<string | null>(null);
   const visibleRides = online ? rides : [];
+
+  useEffect(() => {
+    const accepted = myBids.find((bid) => bid.status === 'accepted');
+    if (!accepted || openedRide.current === accepted.rideId) return;
+    openedRide.current = accepted.rideId;
+    history.push(`/corrida/${accepted.rideId}`);
+  }, [history, myBids]);
   const highlighted = visibleRides.find((ride) => ride.id === highlightedId) ?? null;
 
   const extraMarkers = useMemo(
@@ -148,7 +158,8 @@ export function DriverRadar() {
               onGpsClick={() => {
                 void (async () => {
                   const next = await refresh();
-                  if (next) setTargetCenter({ lat: next.lat, lng: next.lng });
+                  if (next.ok) setTargetCenter({ lat: next.position.lat, lng: next.position.lng });
+                  else setToast(next.message);
                 })();
               }}
             />
@@ -202,6 +213,11 @@ export function DriverRadar() {
                         <div className="text-[11px] font-medium" style={{ color: 'var(--ion-color-medium)' }}>
                           Outras ofertas permanecem ocultas.
                         </div>
+                        {own.status === 'accepted' && (
+                          <IonButton className="mt-2" expand="block" onClick={() => history.push(`/corrida/${ride.id}`)}>
+                            Abrir corrida
+                          </IonButton>
+                        )}
                       </div>
                     ) : (
                       <IonButton

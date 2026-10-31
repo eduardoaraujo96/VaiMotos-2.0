@@ -11,6 +11,7 @@ import {
   fetchBidsForDriver,
   fetchBidsForRide,
   fetchOpenRides,
+  fetchRideById,
   submitBlindBid,
 } from './supabaseService';
 
@@ -185,4 +186,13 @@ export async function loadBidsForDriver(driverId: string): Promise<Bid[]> {
   const result = await fetchBidsForDriver(driverId);
   if (!result.ok) return listBidsForDriver(driverId);
   return result.data;
+}
+
+export async function loadRideById(rideId: string): Promise<Ride | null> {
+  const local = biddingStore.snapshot().rides.find((ride) => ride.id === rideId) ?? null;
+  if (!isSupabaseConfigured) return local;
+  const result = await fetchRideById(rideId);
+  if (!result.ok) return local;
+  if (result.data) biddingStore.publish({ type: 'ride.updated', ride: result.data });
+  return result.data ?? local;
 }

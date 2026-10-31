@@ -59,12 +59,12 @@ export function PassengerHome() {
 
   const useGps = async () => {
     setActiveField('origin');
-    const next = await refresh();
-    if (!next) {
-      setToast(gpsError ?? 'GPS indisponivel. Toque no mapa ou busque um endereco para escolher o embarque.');
+    const result = await refresh();
+    if (!result.ok) {
+      setToast(result.message);
       return;
     }
-    const point = await reverseGeocode(next.lat, next.lng);
+    const point = await reverseGeocode(result.position.lat, result.position.lng);
     setOrigin(point);
     setPickupConfirmed(false);
     setTargetCenter(point);
