@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host --port 5173",
+    "dev:https": "VITE_DEV_HTTPS=1 vite --host --port 5173",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host --port 5173",
     "lint": "tsc --noEmit",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.1",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@types/leaflet": "^1.9.16",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

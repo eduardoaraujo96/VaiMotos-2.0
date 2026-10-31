@@ -41,9 +41,17 @@ const DENIED_MESSAGE =
 const GPS_OFF_MESSAGE =
   'O GPS do aparelho parece desligado. Ative a localizacao nas configuracoes do Android e tente de novo.';
 
+export function canUseNativeGps(): boolean {
+  try {
+    return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Geolocation');
+  } catch {
+    return Capacitor.isNativePlatform();
+  }
+}
+
 export function isSecureGeolocationContext(): boolean {
   if (typeof window === 'undefined') return false;
-  if (Capacitor.isNativePlatform()) return true;
+  if (canUseNativeGps()) return true;
   if (window.isSecureContext) return true;
   const host = window.location.hostname;
   return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
@@ -79,7 +87,7 @@ function isLocationDisabled(error: unknown): boolean {
 }
 
 function mapError(error: unknown): Extract<GpsResult, { ok: false }> {
-  if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+  if (!canUseNativeGps() && !isSecureGeolocationContext()) {
     return { ok: false, code: 'insecure_context', message: INSECURE_MESSAGE };
   }
   const message = errorMessage(error);
@@ -100,7 +108,7 @@ function mapError(error: unknown): Extract<GpsResult, { ok: false }> {
       message: 'Tempo esgotado ao obter o GPS. Ative a localizacao de alta precisao e tente de novo.',
     };
   }
-  if (!navigator.onLine && !Capacitor.isNativePlatform()) {
+  if (!navigator.onLine && !canUseNativeGps()) {
     return { ok: false, code: 'offline', message: 'Sem conexao. Voce ainda pode escolher o ponto no mapa.' };
   }
   return {
@@ -138,7 +146,7 @@ export function permissionFromStatus(status: PermissionStatus): GpsPermissionSta
 
 export async function checkLocationPermission(): Promise<GpsPermissionState> {
   try {
-    if (Capacitor.isNativePlatform()) {
+    if (canUseNativeGps()) {
       const status = await Geolocation.checkPermissions();
       return permissionFromStatus(status);
     }
@@ -157,10 +165,10 @@ export async function checkLocationPermission(): Promise<GpsPermissionState> {
 
 export async function requestLocationPermission(): Promise<GpsPermissionState> {
   try {
-    if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+    if (!canUseNativeGps() && !isSecureGeolocationContext()) {
       return 'unavailable';
     }
-    if (Capacitor.isNativePlatform()) {
+    if (canUseNativeGps()) {
       let status = await Geolocation.checkPermissions();
       if (isGranted(status)) return permissionFromStatus(status);
       status = await Geolocation.requestPermissions({
@@ -230,10 +238,10 @@ async function nativePosition(): Promise<GpsResult> {
 }
 
 export async function getCurrentPosition(): Promise<GpsResult> {
-  if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+  if (!canUseNativeGps() && !isSecureGeolocationContext()) {
     return { ok: false, code: 'insecure_context', message: INSECURE_MESSAGE };
   }
-  if (Capacitor.isNativePlatform()) {
+  if (canUseNativeGps()) {
     return nativePosition();
   }
   const permission = await requestLocationPermission();
@@ -249,7 +257,7 @@ export async function watchPosition(onUpdate: (result: GpsResult) => void): Prom
   let cleared = false;
   let watchId: string | number | null = null;
 
-  if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+  if (!canUseNativeGps() && !isSecureGeolocationContext()) {
     onUpdate({ ok: false, code: 'insecure_context', message: INSECURE_MESSAGE });
     return () => undefined;
   }
@@ -262,7 +270,7 @@ export async function watchPosition(onUpdate: (result: GpsResult) => void): Prom
   }
 
   let fine = true;
-  if (Capacitor.isNativePlatform()) {
+  if (canUseNativeGps()) {
     try {
       const status = await Geolocation.checkPermissions();
       fine = hasFine(status);
@@ -273,7 +281,7 @@ export async function watchPosition(onUpdate: (result: GpsResult) => void): Prom
 
   const options = fine ? FINE_OPTIONS : COARSE_OPTIONS;
 
-  if (Capacitor.isNativePlatform()) {
+  if (canUseNativeGps()) {
     try {
       watchId = await Geolocation.watchPosition(options, (position, error) => {
         if (cleared) return;

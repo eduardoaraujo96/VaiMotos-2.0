@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import {
+  canUseNativeGps,
   checkLocationPermission,
   getCurrentPosition,
   isSecureGeolocationContext,
@@ -46,7 +46,7 @@ export function useGeolocation({ enabled = false, watch = false }: UseGeolocatio
   const refresh = useCallback(async (): Promise<GpsResult> => {
     setRequested(true);
     setLoading(true);
-    if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+    if (!canUseNativeGps() && !isSecureGeolocationContext()) {
       const result: GpsResult = {
         ok: false,
         code: 'insecure_context',
@@ -105,7 +105,7 @@ export function useGeolocation({ enabled = false, watch = false }: UseGeolocatio
     let cancelled = false;
     setRequested(true);
 
-    if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+    if (!canUseNativeGps() && !isSecureGeolocationContext()) {
       setError(null);
       setErrorCode('insecure_context');
       setPermissionDenied(false);
