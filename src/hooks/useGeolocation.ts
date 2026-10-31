@@ -14,12 +14,13 @@ interface UseGeolocationOptions {
   watch?: boolean;
 }
 
-export function useGeolocation({ enabled = true, watch = false }: UseGeolocationOptions = {}) {
+export function useGeolocation({ enabled = false, watch = false }: UseGeolocationOptions = {}) {
   const [position, setPosition] = useState<GpsPosition | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<GpsErrorCode | null>(null);
   const [loading, setLoading] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [requested, setRequested] = useState(false);
   const stopWatch = useRef<(() => void) | null>(null);
 
   const applyResult = useCallback((result: Awaited<ReturnType<typeof getCurrentPosition>>) => {
@@ -36,7 +37,7 @@ export function useGeolocation({ enabled = true, watch = false }: UseGeolocation
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!enabled) return null;
+    setRequested(true);
     setLoading(true);
     if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
       applyResult({
@@ -47,31 +48,22 @@ export function useGeolocation({ enabled = true, watch = false }: UseGeolocation
       setLoading(false);
       return null;
     }
-    const allowed = await requestLocationPermission();
-    if (!allowed) {
-      const result = await getCurrentPosition();
-      applyResult(result);
-      setLoading(false);
-      return result.ok ? result.position : null;
-    }
+    await requestLocationPermission();
     const result = await getCurrentPosition();
     applyResult(result);
     setLoading(false);
     return result.ok ? result.position : null;
-  }, [applyResult, enabled]);
+  }, [applyResult]);
 
   useEffect(() => {
     if (!enabled) {
       stopWatch.current?.();
       stopWatch.current = null;
-      setPosition(null);
-      setLoading(false);
-      setError(null);
-      setErrorCode(null);
       return;
     }
 
     let cancelled = false;
+    setRequested(true);
 
     if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
       setError(null);
@@ -109,6 +101,7 @@ export function useGeolocation({ enabled = true, watch = false }: UseGeolocation
     errorCode,
     loading,
     permissionDenied,
+    requested,
     refresh,
   };
 }

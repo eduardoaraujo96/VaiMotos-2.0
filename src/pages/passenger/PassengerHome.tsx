@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   IonButton,
   IonButtons,
@@ -29,26 +29,14 @@ export function PassengerHome() {
   const { dark, toggle } = useThemeMode();
   const history = useHistory();
   const { requestRide } = useBidding({ viewer: user });
-  const { position, error: gpsError, errorCode, loading: gpsLoading, refresh } = useGeolocation({ enabled: true });
+  const { position, error: gpsError, errorCode, loading: gpsLoading, refresh } = useGeolocation({ enabled: false });
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
   const [destination, setDestination] = useState<LocationPoint | null>(null);
+  const [pickupConfirmed, setPickupConfirmed] = useState(false);
   const [activeField, setActiveField] = useState<'origin' | 'destination'>('origin');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
   const [targetCenter, setTargetCenter] = useState<{ lat: number; lng: number } | null>(null);
-
-  useEffect(() => {
-    if (!position || origin) return;
-    let cancelled = false;
-    void reverseGeocode(position.lat, position.lng).then((point) => {
-      if (cancelled) return;
-      setOrigin(point);
-      setTargetCenter(point);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [origin, position]);
 
   const distanceKm = useMemo(() => {
     if (!origin || !destination) return null;
@@ -66,24 +54,36 @@ export function PassengerHome() {
       return;
     }
     setOrigin(point);
+    setPickupConfirmed(false);
   };
 
   const useGps = async () => {
     setActiveField('origin');
     const next = await refresh();
     if (!next) {
-      setToast(gpsError ?? 'GPS indisponivel neste endereco. Toque no mapa para escolher o embarque.');
+      setToast(gpsError ?? 'GPS indisponivel. Toque no mapa ou busque um endereco para escolher o embarque.');
       return;
     }
     const point = await reverseGeocode(next.lat, next.lng);
     setOrigin(point);
+    setPickupConfirmed(false);
     setTargetCenter(point);
+  };
+
+  const confirmPickup = () => {
+    if (!isValidLocation(origin)) {
+      setToast('Escolha um ponto de embarque no mapa, na busca ou pelo GPS.');
+      return;
+    }
+    setPickupConfirmed(true);
+    setActiveField('destination');
+    setToast('Embarque confirmado. Agora escolha o destino.');
   };
 
   const request = async () => {
     if (!user) return;
-    if (!isValidLocation(origin)) {
-      setToast('Escolha um ponto de embarque valido no mapa.');
+    if (!isValidLocation(origin) || !pickupConfirmed) {
+      setToast('Confirme o ponto de embarque antes de pedir a corrida.');
       return;
     }
     if (!isValidLocation(destination)) {
@@ -136,12 +136,13 @@ export function PassengerHome() {
             gpsPosition={position}
             gpsError={errorCode === 'insecure_context' ? null : gpsError}
             gpsLoading={gpsLoading}
+            gpsAvailable={Boolean(position)}
             selectable
             draggable
             showSearch
             dark={dark}
             targetCenter={targetCenter}
-            searchPlaceholder={activeField === 'destination' ? 'Buscar destino' : 'Buscar embarque'}
+            searchPlaceholder={activeField === 'destination' ? 'Buscar destino em Matões, MA' : 'Buscar embarque em Matões, MA'}
             onSelectLocation={(point) => {
               applyPoint(point);
               setTargetCenter(point);
@@ -149,6 +150,7 @@ export function PassengerHome() {
             onOriginChange={(point) => {
               setActiveField('origin');
               setOrigin(point);
+              setPickupConfirmed(false);
             }}
             onDestinationChange={(point) => {
               setActiveField('destination');
@@ -163,9 +165,11 @@ export function PassengerHome() {
               origin={origin?.address ?? ''}
               destination={destination?.address ?? ''}
               activeField={activeField}
+              pickupConfirmed={pickupConfirmed}
               onOriginChange={(value) => {
                 setActiveField('origin');
                 setOrigin((current) => (current ? { ...current, address: value } : current));
+                setPickupConfirmed(false);
               }}
               onDestinationChange={(value) => {
                 setActiveField('destination');
@@ -176,13 +180,14 @@ export function PassengerHome() {
               onUseGps={() => {
                 void useGps();
               }}
+              onConfirmPickup={confirmPickup}
               onRequest={() => {
                 if (!busy) void request();
               }}
               estimatedPrice={estimate?.price}
               estimatedMinutes={estimate?.minutes}
               approximateDistance={distanceKm != null ? formatApproxKm(distanceKm) : undefined}
-              canRequest={isValidLocation(origin) && isValidLocation(destination) && Boolean(estimate)}
+              canRequest={pickupConfirmed && isValidLocation(origin) && isValidLocation(destination) && Boolean(estimate)}
               busy={busy}
               gpsLoading={gpsLoading}
             />

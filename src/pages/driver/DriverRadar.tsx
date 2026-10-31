@@ -40,7 +40,7 @@ export function DriverRadar() {
     errorCode,
     loading: gpsLoading,
     refresh,
-  } = useGeolocation({ enabled: online, watch: online });
+  } = useGeolocation({ enabled: false });
 
   const myBids = driverBids;
   const visibleRides = online ? rides : [];
@@ -86,7 +86,7 @@ export function DriverRadar() {
     }
   };
 
-  const toggleOnline = async () => {
+  const toggleOnline = () => {
     if (online) {
       setOnline(false);
       setHighlightedId(null);
@@ -94,8 +94,6 @@ export function DriverRadar() {
       return;
     }
     setOnline(true);
-    const next = await refresh();
-    if (next) setTargetCenter({ lat: next.lat, lng: next.lng });
   };
 
   return (
@@ -127,7 +125,7 @@ export function DriverRadar() {
                 {online ? 'Online no radar' : 'Offline'}
               </div>
             </div>
-            <IonButton color={online ? 'medium' : 'success'} onClick={() => void toggleOnline()}>
+            <IonButton color={online ? 'medium' : 'success'} onClick={toggleOnline}>
               {online ? 'Pausar' : 'Ficar online'}
             </IonButton>
           </div>
@@ -137,7 +135,8 @@ export function DriverRadar() {
               height="100%"
               gpsPosition={online ? position : null}
               gpsError={online && errorCode !== 'insecure_context' ? gpsError : null}
-              gpsLoading={online && gpsLoading}
+              gpsLoading={gpsLoading}
+              gpsAvailable={Boolean(position)}
               extraMarkers={extraMarkers}
               destination={highlighted?.destination}
               dark={dark}
@@ -147,8 +146,10 @@ export function DriverRadar() {
                 if (ride) selectRide(ride);
               }}
               onGpsClick={() => {
-                if (position) setTargetCenter({ lat: position.lat, lng: position.lng });
-                void refresh();
+                void (async () => {
+                  const next = await refresh();
+                  if (next) setTargetCenter({ lat: next.lat, lng: next.lng });
+                })();
               }}
             />
           </div>

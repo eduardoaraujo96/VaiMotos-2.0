@@ -19,8 +19,8 @@ export function gpsIcon(): L.DivIcon {
   return L.divIcon({
     className: 'vaimoto-pin-wrap',
     html: '<div class="vaimoto-gps"><span></span></div>',
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
   });
 }
 

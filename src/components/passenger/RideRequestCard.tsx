@@ -1,5 +1,5 @@
 import { IonButton, IonIcon, IonInput, IonItem, IonSpinner } from '@ionic/react';
-import { flashOutline, locateOutline, navigateOutline } from 'ionicons/icons';
+import { checkmarkCircleOutline, flashOutline, locateOutline, navigateOutline } from 'ionicons/icons';
 
 interface RideRequestCardProps {
   origin: string;
@@ -9,6 +9,7 @@ interface RideRequestCardProps {
   onOriginFocus?: () => void;
   onDestinationFocus?: () => void;
   onUseGps?: () => void;
+  onConfirmPickup?: () => void;
   onRequest: () => void;
   estimatedPrice?: number;
   estimatedMinutes?: number;
@@ -16,6 +17,7 @@ interface RideRequestCardProps {
   canRequest?: boolean;
   busy?: boolean;
   gpsLoading?: boolean;
+  pickupConfirmed?: boolean;
   activeField?: 'origin' | 'destination';
 }
 
@@ -27,6 +29,7 @@ export function RideRequestCard({
   onOriginFocus,
   onDestinationFocus,
   onUseGps,
+  onConfirmPickup,
   onRequest,
   estimatedPrice,
   estimatedMinutes,
@@ -34,6 +37,7 @@ export function RideRequestCard({
   canRequest,
   busy = false,
   gpsLoading = false,
+  pickupConfirmed = false,
   activeField = 'origin',
 }: RideRequestCardProps) {
   const requestEnabled = (canRequest ?? Boolean(destination.trim())) && !busy;
@@ -87,7 +91,7 @@ export function RideRequestCard({
         />
       </IonItem>
       <p className="mb-3 px-1 text-[11px]" style={{ color: 'var(--ion-color-medium)' }}>
-        Toque no mapa, arraste o marcador ou busque um endereco. Sem GPS, a escolha manual continua liberada.
+        Mapa inicia em Matões, MA. Use Minha localização, busque um endereço ou toque no mapa. Sem GPS, a escolha manual continua liberada.
       </p>
       {estimatedPrice !== undefined && (
         <div className="mb-3 flex items-center justify-between px-1">
@@ -101,6 +105,17 @@ export function RideRequestCard({
       {approximateDistance && estimatedPrice === undefined && (
         <div className="mb-3 px-1 text-xs" style={{ color: 'var(--ion-color-medium)' }}>
           {approximateDistance}
+        </div>
+      )}
+      {onConfirmPickup && !pickupConfirmed && (
+        <IonButton expand="block" fill="outline" className="mb-2" onClick={onConfirmPickup} disabled={!origin.trim()}>
+          <IonIcon icon={checkmarkCircleOutline} slot="start" />
+          Confirmar embarque
+        </IonButton>
+      )}
+      {pickupConfirmed && (
+        <div className="mb-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(0,200,83,0.12)', color: '#00C853' }}>
+          Embarque confirmado
         </div>
       )}
       <IonButton expand="block" size="large" onClick={onRequest} disabled={!requestEnabled}>

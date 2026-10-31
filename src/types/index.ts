@@ -57,6 +57,9 @@ export interface LocationPoint {
   lng: number;
   address: string;
   neighborhood?: string;
+  name?: string;
+  street?: string;
+  municipality?: string;
 }
 
 export interface Ride {

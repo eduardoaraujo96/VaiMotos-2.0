@@ -13,9 +13,10 @@ import L from 'leaflet';
 import { IonButton, IonIcon, IonSpinner } from '@ionic/react';
 import { locateOutline, searchOutline, warningOutline } from 'ionicons/icons';
 import type { LocationPoint } from '../../types';
+import { QUICK_PLACE_SEARCHES } from '../../data/region';
 import { reverseGeocode, searchAddresses } from '../../services/geocoding';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { isValidLatLng, MAP_CITY_ZOOM, MAP_FALLBACK_CENTER, MAP_FALLBACK_ZOOM } from '../../utils/geo';
+import { isValidLatLng, MAP_CITY_ZOOM, MAP_FALLBACK_CENTER, MAP_FALLBACK_ZOOM, MAP_PLACE_ZOOM } from '../../utils/geo';
 import { DEST_COLOR, gpsIcon, ORIGIN_COLOR, pinIcon } from './mapIcons';
 
 export interface ExtraMapMarker {
@@ -41,6 +42,8 @@ export interface LocationMapProps {
   zoom?: number;
   gpsError?: string | null;
   gpsLoading?: boolean;
+  gpsAvailable?: boolean;
+  showGpsButton?: boolean;
   targetCenter?: { lat: number; lng: number } | null;
   onSelectLocation?: (point: LocationPoint) => void;
   onOriginChange?: (point: LocationPoint) => void;
@@ -103,6 +106,17 @@ function coordsKey(point?: { lat: number; lng: number } | null): string {
   return `${point.lat.toFixed(5)},${point.lng.toFixed(5)}`;
 }
 
+function resultTitle(item: LocationPoint): string {
+  return item.name?.trim() || item.street?.trim() || item.address.split(' — ')[0];
+}
+
+function resultSubtitle(item: LocationPoint): string {
+  const parts = [item.street && item.street !== item.name ? item.street : null, item.neighborhood, item.municipality]
+    .filter(Boolean)
+    .filter((part, index, list) => list.indexOf(part) === index);
+  return parts.join(' · ') || item.address;
+}
+
 export function LocationMap({
   height = '100%',
   origin,
@@ -112,11 +126,13 @@ export function LocationMap({
   selectable = false,
   draggable = false,
   showSearch = false,
-  searchPlaceholder = 'Buscar endereco',
+  searchPlaceholder = 'Buscar em Matões, MA',
   dark = false,
   zoom,
   gpsError,
   gpsLoading = false,
+  gpsAvailable = false,
+  showGpsButton = true,
   targetCenter = null,
   onSelectLocation,
   onOriginChange,
@@ -132,10 +148,10 @@ export function LocationMap({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [offline, setOffline] = useState(!navigator.onLine);
   const [followToken, setFollowToken] = useState(0);
+  const [followZoom, setFollowZoom] = useState(MAP_FALLBACK_ZOOM);
   const pickSeq = useRef(0);
   const lastTarget = useRef('');
-  const didLockGps = useRef(false);
-  const debouncedQuery = useDebouncedValue(query, 450);
+  const debouncedQuery = useDebouncedValue(query, 500);
 
   useEffect(() => {
     setMounted(true);
@@ -160,14 +176,9 @@ export function LocationMap({
     const key = coordsKey(targetCenter);
     if (!key || key === lastTarget.current) return;
     lastTarget.current = key;
+    setFollowZoom(MAP_PLACE_ZOOM);
     setFollowToken((value) => value + 1);
   }, [targetCenter]);
-
-  useEffect(() => {
-    if (!gpsPosition || didLockGps.current) return;
-    didLockGps.current = true;
-    setFollowToken((value) => value + 1);
-  }, [gpsPosition]);
 
   useEffect(() => {
     if (!showSearch) return;
@@ -183,7 +194,10 @@ export function LocationMap({
     setSearchError(null);
     void searchAddresses(term)
       .then((points) => {
-        if (!cancelled) setResults(points);
+        if (!cancelled) {
+          setResults(points);
+          setSearchError(points.length === 0 ? 'Nenhum local encontrado na regiao.' : null);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -210,6 +224,7 @@ export function LocationMap({
       };
       if (apply) apply(provisional);
       else onSelectLocation?.(provisional);
+      if (!navigator.onLine) return;
       const resolved = await reverseGeocode(lat, lng);
       if (seq !== pickSeq.current) return;
       if (apply) apply(resolved);
@@ -234,19 +249,31 @@ export function LocationMap({
     return [MAP_FALLBACK_CENTER.lat, MAP_FALLBACK_CENTER.lng];
   }, [destination, extraMarkers, gpsPosition, origin, targetCenter]);
 
-  const hasLocalFocus = Boolean(gpsPosition || origin || targetCenter);
-  const mapZoom = zoom ?? (hasLocalFocus ? MAP_CITY_ZOOM : MAP_FALLBACK_ZOOM);
+  const hasLocalFocus = Boolean(gpsPosition || origin || destination || targetCenter);
+  const mapZoom = zoom ?? (followToken > 0 ? followZoom : hasLocalFocus ? MAP_CITY_ZOOM : MAP_FALLBACK_ZOOM);
 
   const tiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
   const centerOnGps = () => {
-    if (gpsPosition) setFollowToken((value) => value + 1);
+    if (gpsPosition) {
+      setFollowZoom(MAP_PLACE_ZOOM);
+      setFollowToken((value) => value + 1);
+    }
     onGpsClick?.();
   };
 
+  const applySearchResult = (item: LocationPoint) => {
+    onSelectLocation?.(item);
+    setQuery(resultTitle(item));
+    setResults([]);
+    setSearchError(null);
+  };
+
+  const gpsLabel = gpsLoading ? 'Buscando GPS...' : gpsAvailable ? 'GPS ativo' : gpsError ? 'GPS indisponivel' : 'GPS';
+
   return (
-    <div className={`vaimoto-map-shell relative w-full overflow-hidden ${dark ? 'vaimoto-map-dark' : ''}`} style={{ height, minHeight: 220 }}>
+    <div className={`vaimoto-map-shell relative w-full overflow-hidden ${dark ? 'vaimoto-map-dark' : ''} ${showSearch ? 'vaimoto-map-shell--search' : ''}`} style={{ height, minHeight: 220 }}>
       {mounted && (
       <MapContainer
         center={mapCenter}
@@ -265,7 +292,7 @@ export function LocationMap({
             <Circle
               center={[gpsPosition.lat, gpsPosition.lng]}
               radius={Math.min(gpsPosition.accuracy ?? 40, 120)}
-              pathOptions={{ color: '#00C853', fillColor: '#00C853', fillOpacity: 0.12, weight: 1 }}
+              pathOptions={{ color: '#2196F3', fillColor: '#2196F3', fillOpacity: 0.12, weight: 1 }}
             />
             <Marker position={[gpsPosition.lat, gpsPosition.lng]} icon={gpsIcon()} zIndexOffset={300} />
           </>
@@ -318,7 +345,7 @@ export function LocationMap({
       )}
 
       {showSearch && (
-        <div className="vaimoto-map-search absolute left-3 right-14 top-3 z-[1100]">
+        <div className="vaimoto-map-search absolute left-3 right-3 top-3 z-[1100]">
           <div
             className="flex items-center gap-2 rounded-2xl px-3 py-2"
             style={{ background: 'var(--ion-card-background)', boxShadow: '0 8px 24px rgba(15,15,20,0.16)' }}
@@ -332,6 +359,19 @@ export function LocationMap({
             />
             {searching && <IonSpinner name="crescent" style={{ width: 18, height: 18 }} />}
           </div>
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            {QUICK_PLACE_SEARCHES.map((place) => (
+              <button
+                key={place.label}
+                type="button"
+                className="vaimoto-quick-chip"
+                style={{ background: 'var(--ion-card-background)', color: 'var(--ion-text-color)' }}
+                onClick={() => setQuery(place.query)}
+              >
+                {place.label}
+              </button>
+            ))}
+          </div>
           {results.length > 0 && (
             <div
               className="mt-2 max-h-52 overflow-auto rounded-2xl"
@@ -343,18 +383,15 @@ export function LocationMap({
                   type="button"
                   className="block w-full px-3 py-2 text-left text-sm"
                   style={{ borderBottom: '1px solid rgba(139,139,154,0.16)' }}
-                  onClick={() => {
-                    onSelectLocation?.(item);
-                    setQuery(item.address);
-                    setResults([]);
-                  }}
+                  onClick={() => applySearchResult(item)}
                 >
-                  <div className="font-semibold">{item.address}</div>
-                  {item.neighborhood && (
-                    <div className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>
-                      {item.neighborhood}
-                    </div>
-                  )}
+                  <div className="font-semibold">{resultTitle(item)}</div>
+                  <div className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>
+                    {resultSubtitle(item)}
+                  </div>
+                  <div className="text-[10px]" style={{ color: 'var(--ion-color-medium)' }}>
+                    {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+                  </div>
                 </button>
               ))}
             </div>
@@ -367,15 +404,35 @@ export function LocationMap({
         </div>
       )}
 
-      <div className="absolute right-3 top-3 z-[1100] flex flex-col gap-2">
-        <IonButton className="vaimoto-map-fab" fill="solid" color="light" onClick={centerOnGps}>
-          {gpsLoading ? <IonSpinner name="crescent" /> : <IonIcon icon={locateOutline} color="primary" />}
-        </IonButton>
-      </div>
+      {showGpsButton && (
+        <div className={`absolute right-3 z-[1100] flex flex-col items-end gap-2 ${showSearch ? 'top-[7.5rem]' : 'top-3'}`}>
+          <div
+            className="vaimoto-gps-chip"
+            style={{
+              background: 'var(--ion-card-background)',
+              color: gpsAvailable ? '#2196F3' : 'var(--ion-color-medium)',
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 99,
+                background: gpsLoading ? '#FFB300' : gpsAvailable ? '#2196F3' : '#8b8b9a',
+              }}
+            />
+            {gpsLabel}
+          </div>
+          <IonButton className="vaimoto-map-locate" fill="solid" color="light" onClick={centerOnGps} disabled={gpsLoading}>
+            {gpsLoading ? <IonSpinner name="crescent" /> : <IonIcon icon={locateOutline} color="primary" />}
+            Minha localização
+          </IonButton>
+        </div>
+      )}
 
       {(gpsError || offline) && !dismissedAlert && (
         <div
-          className={`absolute left-3 right-3 z-[1100] flex items-start gap-2 rounded-2xl px-3 py-2 text-xs ${showSearch ? 'top-16' : 'top-14'}`}
+          className={`absolute left-3 z-[1100] flex items-start gap-2 rounded-2xl px-3 py-2 text-xs ${showSearch ? 'top-[7.5rem] right-36' : 'top-14 right-3'}`}
           style={{ background: 'var(--ion-card-background)', boxShadow: '0 8px 20px rgba(15,15,20,0.14)' }}
         >
           <IonIcon icon={warningOutline} color="warning" className="mt-0.5" />

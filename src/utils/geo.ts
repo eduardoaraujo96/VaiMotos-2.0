@@ -1,6 +1,11 @@
 import type { LocationPoint } from '../types';
+import { MAP_CITY_ZOOM, MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM, MAP_PLACE_ZOOM } from '../data/region';
 
 const EARTH_RADIUS_KM = 6371;
+
+export { MAP_CITY_ZOOM, MAP_PLACE_ZOOM };
+export const MAP_FALLBACK_CENTER = MAP_DEFAULT_CENTER;
+export const MAP_FALLBACK_ZOOM = MAP_DEFAULT_ZOOM;
 
 export function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
@@ -49,7 +54,3 @@ export function formatApproxKm(km: number): string {
 export function estimateTravelMinutes(distanceKm: number): number {
   return Math.max(6, Math.round(distanceKm * 3.2));
 }
-
-export const MAP_FALLBACK_CENTER = { lat: -14.235, lng: -51.9253 };
-export const MAP_FALLBACK_ZOOM = 4;
-export const MAP_CITY_ZOOM = 16;
