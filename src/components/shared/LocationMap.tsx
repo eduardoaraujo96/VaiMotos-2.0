@@ -125,6 +125,7 @@ export function LocationMap({
   onGpsClick,
 }: LocationMapProps) {
   const [mounted, setMounted] = useState(false);
+  const [dismissedAlert, setDismissedAlert] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LocationPoint[]>([]);
   const [searching, setSearching] = useState(false);
@@ -139,6 +140,10 @@ export function LocationMap({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setDismissedAlert(false);
+  }, [gpsError, offline]);
 
   useEffect(() => {
     const on = () => setOffline(false);
@@ -232,12 +237,8 @@ export function LocationMap({
   const hasLocalFocus = Boolean(gpsPosition || origin || targetCenter);
   const mapZoom = zoom ?? (hasLocalFocus ? MAP_CITY_ZOOM : MAP_FALLBACK_ZOOM);
 
-  const tiles = dark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const attribution = dark
-    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+  const tiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
   const centerOnGps = () => {
     if (gpsPosition) setFollowToken((value) => value + 1);
@@ -245,7 +246,7 @@ export function LocationMap({
   };
 
   return (
-    <div className="vaimoto-map-shell relative w-full overflow-hidden" style={{ height, minHeight: 220 }}>
+    <div className={`vaimoto-map-shell relative w-full overflow-hidden ${dark ? 'vaimoto-map-dark' : ''}`} style={{ height, minHeight: 220 }}>
       {mounted && (
       <MapContainer
         center={mapCenter}
@@ -254,7 +255,7 @@ export function LocationMap({
         zoomControl={false}
         attributionControl
       >
-        <TileLayer key={dark ? 'dark' : 'light'} attribution={attribution} url={tiles} />
+        <TileLayer attribution={attribution} url={tiles} />
         <ZoomControl position="topright" />
         <MapViewManager center={mapCenter} zoom={mapZoom} followToken={followToken} />
         <MapEvents selectable={selectable} onPick={(lat, lng) => void pickPoint(lat, lng)} />
@@ -372,17 +373,20 @@ export function LocationMap({
         </IonButton>
       </div>
 
-      {(gpsError || offline) && (
+      {(gpsError || offline) && !dismissedAlert && (
         <div
           className={`absolute left-3 right-3 z-[1100] flex items-start gap-2 rounded-2xl px-3 py-2 text-xs ${showSearch ? 'top-16' : 'top-14'}`}
           style={{ background: 'var(--ion-card-background)', boxShadow: '0 8px 20px rgba(15,15,20,0.14)' }}
         >
           <IonIcon icon={warningOutline} color="warning" className="mt-0.5" />
-          <span>
+          <span className="flex-1">
             {offline
               ? 'Sem internet. O mapa pode nao carregar, mas voce ainda pode escolher o ponto se o mapa ja estiver visivel.'
               : gpsError}
           </span>
+          <button type="button" className="text-xs font-semibold" onClick={() => setDismissedAlert(true)}>
+            OK
+          </button>
         </div>
       )}
     </div>

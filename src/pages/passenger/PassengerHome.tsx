@@ -29,7 +29,7 @@ export function PassengerHome() {
   const { dark, toggle } = useThemeMode();
   const history = useHistory();
   const { requestRide } = useBidding({ viewer: user });
-  const { position, error: gpsError, loading: gpsLoading, refresh } = useGeolocation({ enabled: true });
+  const { position, error: gpsError, errorCode, loading: gpsLoading, refresh } = useGeolocation({ enabled: true });
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
   const [destination, setDestination] = useState<LocationPoint | null>(null);
   const [activeField, setActiveField] = useState<'origin' | 'destination'>('origin');
@@ -72,7 +72,7 @@ export function PassengerHome() {
     setActiveField('origin');
     const next = await refresh();
     if (!next) {
-      setToast('GPS indisponivel. Toque no mapa para escolher o embarque.');
+      setToast(gpsError ?? 'GPS indisponivel neste endereco. Toque no mapa para escolher o embarque.');
       return;
     }
     const point = await reverseGeocode(next.lat, next.lng);
@@ -134,7 +134,7 @@ export function PassengerHome() {
             origin={origin}
             destination={destination}
             gpsPosition={position}
-            gpsError={gpsError}
+            gpsError={errorCode === 'insecure_context' ? null : gpsError}
             gpsLoading={gpsLoading}
             selectable
             draggable

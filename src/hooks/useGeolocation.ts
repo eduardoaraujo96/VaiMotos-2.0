@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
   getCurrentPosition,
+  isSecureGeolocationContext,
   requestLocationPermission,
   watchPosition,
   type GpsErrorCode,
@@ -36,13 +38,21 @@ export function useGeolocation({ enabled = true, watch = false }: UseGeolocation
   const refresh = useCallback(async () => {
     if (!enabled) return null;
     setLoading(true);
-    const allowed = await requestLocationPermission();
-    if (!allowed) {
-      setPermissionDenied(true);
-      setErrorCode('permission_denied');
-      setError('Permissao de localizacao negada. Selecione o ponto manualmente no mapa.');
+    if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+      applyResult({
+        ok: false,
+        code: 'insecure_context',
+        message: 'GPS exige HTTPS ou localhost. Neste endereco HTTP, escolha o ponto tocando no mapa.',
+      });
       setLoading(false);
       return null;
+    }
+    const allowed = await requestLocationPermission();
+    if (!allowed) {
+      const result = await getCurrentPosition();
+      applyResult(result);
+      setLoading(false);
+      return result.ok ? result.position : null;
     }
     const result = await getCurrentPosition();
     applyResult(result);
@@ -62,26 +72,24 @@ export function useGeolocation({ enabled = true, watch = false }: UseGeolocation
     }
 
     let cancelled = false;
+
+    if (!Capacitor.isNativePlatform() && !isSecureGeolocationContext()) {
+      setError(null);
+      setErrorCode('insecure_context');
+      setPermissionDenied(false);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     void (async () => {
-      const allowed = await requestLocationPermission();
-      if (cancelled) return;
-      if (!allowed) {
-        setPermissionDenied(true);
-        setErrorCode('permission_denied');
-        setError('Permissao de localizacao negada. Selecione o ponto manualmente no mapa.');
-        setLoading(false);
-        return;
-      }
-
       const result = await getCurrentPosition();
-      if (!cancelled) {
-        applyResult(result);
-        setLoading(false);
-      }
+      if (cancelled) return;
+      applyResult(result);
+      setLoading(false);
 
-      if (watch) {
+      if (watch && result.ok) {
         stopWatch.current = await watchPosition((next) => {
           if (!cancelled) applyResult(next);
         });

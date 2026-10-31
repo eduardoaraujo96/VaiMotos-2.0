@@ -111,6 +111,16 @@ body.dark .vaimoto-map-shell .leaflet-control-attribution {
   color: #f4f4f7;
 }
 
+body.dark .vaimoto-map-shell .leaflet-tile-pane,
+.vaimoto-map-shell.vaimoto-map-dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+
+body.dark .vaimoto-map-shell .leaflet-control-zoom a,
+.vaimoto-map-shell.vaimoto-map-dark .leaflet-control-zoom a {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 .vaimoto-map-input {
   color: var(--ion-text-color);
 }

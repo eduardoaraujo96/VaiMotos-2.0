@@ -37,6 +37,7 @@ export function DriverRadar() {
   const {
     position,
     error: gpsError,
+    errorCode,
     loading: gpsLoading,
     refresh,
   } = useGeolocation({ enabled: online, watch: online });
@@ -135,7 +136,7 @@ export function DriverRadar() {
             <LocationMap
               height="100%"
               gpsPosition={online ? position : null}
-              gpsError={online ? gpsError : null}
+              gpsError={online && errorCode !== 'insecure_context' ? gpsError : null}
               gpsLoading={online && gpsLoading}
               extraMarkers={extraMarkers}
               destination={highlighted?.destination}
