@@ -70,3 +70,90 @@ body.dark .vaimoto-map {
   border-radius: 4px;
   opacity: 0.7;
 }
+
+.vaimoto-map-shell,
+.vaimoto-map-shell .leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: var(--moto-map);
+  z-index: 0;
+}
+
+.vaimoto-map-shell .leaflet-pane {
+  z-index: 1;
+}
+
+.vaimoto-map-shell .leaflet-control {
+  z-index: 2;
+}
+
+.vaimoto-map-shell .leaflet-top,
+.vaimoto-map-shell .leaflet-bottom {
+  z-index: 2;
+}
+
+.vaimoto-map-shell .leaflet-top.leaflet-right {
+  top: 56px;
+}
+
+.vaimoto-map-shell,
+.vaimoto-map-shell .leaflet-container {
+  touch-action: none;
+}
+
+.vaimoto-map-shell .leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+body.dark .vaimoto-map-shell .leaflet-control-attribution {
+  background: rgba(15, 15, 20, 0.72);
+  color: #f4f4f7;
+}
+
+.vaimoto-map-input {
+  color: var(--ion-text-color);
+}
+
+.vaimoto-map-fab {
+  --border-radius: 999px;
+  --padding-start: 10px;
+  --padding-end: 10px;
+  margin: 0;
+  height: 42px;
+  width: 42px;
+}
+
+.vaimoto-pin-wrap {
+  background: transparent;
+}
+
+.vaimoto-pin {
+  width: 18px;
+  height: 18px;
+  margin: 8px auto 0;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--pin-color, #ff6b00);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+  border: 2px solid #fff;
+}
+
+.vaimoto-pin.is-selected {
+  width: 22px;
+  height: 22px;
+  box-shadow: 0 0 0 6px rgba(255, 107, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+.vaimoto-gps {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #00c853;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(0, 200, 83, 0.2);
+}
+
+.vaimoto-gps span {
+  display: none;
+}

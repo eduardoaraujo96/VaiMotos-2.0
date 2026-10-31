@@ -4,6 +4,7 @@ import { avatarDataUri } from '../utils/format';
 import { biddingStore } from './biddingStore';
 import { AppError } from './errors';
 import { isSupabaseConfigured } from './supabaseClient';
+import { isValidLatLng } from '../utils/geo';
 import {
   acceptDriverBid,
   createRide,
@@ -25,6 +26,9 @@ export async function createRideRequest(input: {
   estimatedMinutes: number;
   distanceKm: number;
 }): Promise<Ride> {
+  if (!isValidLatLng(input.origin.lat, input.origin.lng) || !isValidLatLng(input.destination.lat, input.destination.lng)) {
+    throw new AppError('invalid_coordinates', 'Escolha embarque e destino validos no mapa.');
+  }
   if (isSupabaseConfigured) {
     const result = await createRide(input);
     if (!result.ok) throw new AppError(result.error.code, result.error.message);

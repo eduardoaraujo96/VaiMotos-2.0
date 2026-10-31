@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   IonButton,
   IonButtons,
@@ -13,49 +13,96 @@ import {
 import { moonOutline, sunnyOutline } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
 import { RoleBadge } from '../../components/auth/RoleBadge';
-import { MapCanvas } from '../../components/shared/MapCanvas';
+import { LocationMap } from '../../components/shared/LocationMap';
 import { RideRequestCard } from '../../components/passenger/RideRequestCard';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGeolocation } from '../../hooks/useGeolocation';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { useBidding } from '../../hooks/useBidding';
+import { reverseGeocode } from '../../services/geocoding';
 import { estimateFare } from '../../services/rides';
+import type { LocationPoint } from '../../types';
+import { formatApproxKm, haversineKm, isValidLocation } from '../../utils/geo';
 
 export function PassengerHome() {
   const { user } = useAuth();
   const { dark, toggle } = useThemeMode();
   const history = useHistory();
   const { requestRide } = useBidding({ viewer: user });
-  const [origin, setOrigin] = useState('Minha localizacao atual');
-  const [destination, setDestination] = useState('');
+  const { position, error: gpsError, loading: gpsLoading, refresh } = useGeolocation({ enabled: true });
+  const [origin, setOrigin] = useState<LocationPoint | null>(null);
+  const [destination, setDestination] = useState<LocationPoint | null>(null);
+  const [activeField, setActiveField] = useState<'origin' | 'destination'>('origin');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
+  const [targetCenter, setTargetCenter] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (!position || origin) return;
+    let cancelled = false;
+    void reverseGeocode(position.lat, position.lng).then((point) => {
+      if (cancelled) return;
+      setOrigin(point);
+      setTargetCenter(point);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [origin, position]);
+
+  const distanceKm = useMemo(() => {
+    if (!origin || !destination) return null;
+    return haversineKm(origin, destination);
+  }, [destination, origin]);
 
   const estimate = useMemo(() => {
-    if (!destination.trim()) return undefined;
-    return estimateFare(4.2);
-  }, [destination]);
+    if (distanceKm == null || distanceKm < 0.05) return undefined;
+    return estimateFare(distanceKm);
+  }, [distanceKm]);
+
+  const applyPoint = (point: LocationPoint) => {
+    if (activeField === 'destination') {
+      setDestination(point);
+      return;
+    }
+    setOrigin(point);
+  };
+
+  const useGps = async () => {
+    setActiveField('origin');
+    const next = await refresh();
+    if (!next) {
+      setToast('GPS indisponivel. Toque no mapa para escolher o embarque.');
+      return;
+    }
+    const point = await reverseGeocode(next.lat, next.lng);
+    setOrigin(point);
+    setTargetCenter(point);
+  };
 
   const request = async () => {
-    if (!user || !estimate) return;
+    if (!user) return;
+    if (!isValidLocation(origin)) {
+      setToast('Escolha um ponto de embarque valido no mapa.');
+      return;
+    }
+    if (!isValidLocation(destination)) {
+      setToast('Escolha um destino valido no mapa.');
+      return;
+    }
+    if (distanceKm == null || distanceKm < 0.05 || !estimate) {
+      setToast('Escolha um destino diferente do embarque.');
+      return;
+    }
     setBusy(true);
     try {
       const ride = await requestRide({
         passenger: user,
-        origin: {
-          lat: -23.5614,
-          lng: -46.6558,
-          address: origin || 'Minha localizacao atual',
-          neighborhood: 'Bela Vista',
-        },
-        destination: {
-          lat: -23.5505,
-          lng: -46.6333,
-          address: destination,
-          neighborhood: 'Centro',
-        },
+        origin,
+        destination,
         estimatedPrice: estimate.price,
         estimatedMinutes: estimate.minutes,
-        distanceKm: 4.2,
+        distanceKm: Math.round(distanceKm * 10) / 10,
       });
       history.push(`/passenger/offers/${ride.id}`);
     } catch {
@@ -82,18 +129,62 @@ export function PassengerHome() {
       </IonHeader>
       <IonContent scrollY={false}>
         <div className="relative h-full">
-          <MapCanvas height="100%" />
+          <LocationMap
+            height="100%"
+            origin={origin}
+            destination={destination}
+            gpsPosition={position}
+            gpsError={gpsError}
+            gpsLoading={gpsLoading}
+            selectable
+            draggable
+            showSearch
+            dark={dark}
+            targetCenter={targetCenter}
+            searchPlaceholder={activeField === 'destination' ? 'Buscar destino' : 'Buscar embarque'}
+            onSelectLocation={(point) => {
+              applyPoint(point);
+              setTargetCenter(point);
+            }}
+            onOriginChange={(point) => {
+              setActiveField('origin');
+              setOrigin(point);
+            }}
+            onDestinationChange={(point) => {
+              setActiveField('destination');
+              setDestination(point);
+            }}
+            onGpsClick={() => {
+              void useGps();
+            }}
+          />
           <div className="absolute bottom-0 left-0 right-0 p-3">
             <RideRequestCard
-              origin={origin}
-              destination={destination}
-              onOriginChange={setOrigin}
-              onDestinationChange={setDestination}
+              origin={origin?.address ?? ''}
+              destination={destination?.address ?? ''}
+              activeField={activeField}
+              onOriginChange={(value) => {
+                setActiveField('origin');
+                setOrigin((current) => (current ? { ...current, address: value } : current));
+              }}
+              onDestinationChange={(value) => {
+                setActiveField('destination');
+                setDestination((current) => (current ? { ...current, address: value } : current));
+              }}
+              onOriginFocus={() => setActiveField('origin')}
+              onDestinationFocus={() => setActiveField('destination')}
+              onUseGps={() => {
+                void useGps();
+              }}
               onRequest={() => {
                 if (!busy) void request();
               }}
               estimatedPrice={estimate?.price}
               estimatedMinutes={estimate?.minutes}
+              approximateDistance={distanceKm != null ? formatApproxKm(distanceKm) : undefined}
+              canRequest={isValidLocation(origin) && isValidLocation(destination) && Boolean(estimate)}
+              busy={busy}
+              gpsLoading={gpsLoading}
             />
           </div>
         </div>

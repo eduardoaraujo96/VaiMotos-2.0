@@ -4,6 +4,7 @@ import type { BidRow, ProfileRow, RideRow, ServiceResult, VehicleRow } from '../
 import { fail } from './errors';
 import { mapBidRow, mapProfileRow, mapRideRow } from './mappers';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { isValidLatLng } from '../utils/geo';
 
 const AVATAR_BUCKET = 'avatars';
 const RIDE_SELECT =
@@ -122,6 +123,9 @@ export async function createRide(input: {
   distanceKm: number;
 }): Promise<ServiceResult<Ride>> {
   try {
+    if (!isValidLatLng(input.origin.lat, input.origin.lng) || !isValidLatLng(input.destination.lat, input.destination.lng)) {
+      return fail(new Error('invalid_coordinates'), 'Escolha embarque e destino validos no mapa.');
+    }
     const client = clientOrThrow();
     const expiresAt = new Date(Date.now() + 90_000).toISOString();
     const { data, error } = await client

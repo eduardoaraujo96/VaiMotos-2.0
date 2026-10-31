@@ -66,5 +66,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O VaiMoto usa sua localizacao para mostrar sua posicao no mapa e definir o ponto de embarque ou os pedidos proximos.</string>
 </dict>
 </plist>

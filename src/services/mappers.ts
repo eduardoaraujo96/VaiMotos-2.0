@@ -30,14 +30,14 @@ export function mapRideRow(row: RideRow): Ride {
     passengerName: row.passenger?.full_name ?? 'Passageiro',
     driverId: row.driver_id ?? undefined,
     origin: {
-      lat: row.origin_lat,
-      lng: row.origin_lng,
+      lat: row.origin_lat == null ? Number.NaN : Number(row.origin_lat),
+      lng: row.origin_lng == null ? Number.NaN : Number(row.origin_lng),
       address: row.origin_address,
       neighborhood: row.origin_neighborhood ?? undefined,
     },
     destination: {
-      lat: row.dest_lat,
-      lng: row.dest_lng,
+      lat: row.dest_lat == null ? Number.NaN : Number(row.dest_lat),
+      lng: row.dest_lng == null ? Number.NaN : Number(row.dest_lng),
       address: row.dest_address,
       neighborhood: row.dest_neighborhood ?? undefined,
     },

@@ -59,7 +59,7 @@ export function BidPriceModal({ ride, isOpen, submitting = false, onDismiss, onS
             {ride.origin.address} para {ride.destination.address}
           </div>
           <div className="mt-1 text-xs" style={{ color: 'var(--ion-color-medium)' }}>
-            {ride.distanceKm.toFixed(1)} km · {ride.estimatedMinutes} min estimados
+            {ride.distanceKm.toFixed(1)} km (aprox., linha reta) · {ride.estimatedMinutes} min estimados
           </div>
         </div>
 

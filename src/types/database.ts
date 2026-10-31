@@ -29,12 +29,12 @@ export interface RideRow {
   id: string;
   passenger_id: string;
   driver_id: string | null;
-  origin_lat: number;
-  origin_lng: number;
+  origin_lat: number | null;
+  origin_lng: number | null;
   origin_address: string;
   origin_neighborhood: string | null;
-  dest_lat: number;
-  dest_lng: number;
+  dest_lat: number | null;
+  dest_lng: number | null;
   dest_address: string;
   dest_neighborhood: string | null;
   suggested_price: number | string;
