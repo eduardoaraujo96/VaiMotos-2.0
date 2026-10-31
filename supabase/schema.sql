@@ -265,3 +265,6 @@ do $$ begin
   alter publication supabase_realtime add table public.bids;
 exception when duplicate_object then null;
 end $$;
+
+-- Geolocalizacao: ver supabase/migrations/20261031000000_geolocation_rides.sql
+-- (coordenadas nullable, checks de faixa e policy de update com WITH CHECK).

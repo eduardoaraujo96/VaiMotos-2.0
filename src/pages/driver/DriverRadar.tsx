@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   IonBadge,
   IonButton,
@@ -18,6 +18,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { useBidding } from '../../hooks/useBidding';
 import { formatBRL } from '../../utils/format';
+import { LocationMap, type MapPin } from '../../components/shared/LocationMap';
+import { useGeolocation } from '../../hooks/useGeolocation';
+import { approxMinutes, formatApproxDistance, haversineKm, isValidCoordinate } from '../../utils/geo';
 import type { Ride } from '../../types';
 
 export function DriverRadar() {
@@ -28,6 +31,36 @@ export function DriverRadar() {
   const [selected, setSelected] = useState<Ride | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState('');
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [recenter, setRecenter] = useState(0);
+  const gps = useGeolocation();
+  const { start: startGps, stop: stopGps, reset: resetGps } = gps;
+
+  // GPS apenas em primeiro plano e apenas enquanto online.
+  useEffect(() => {
+    if (online) void startGps();
+    else resetGps();
+    return () => stopGps();
+  }, [online, startGps, stopGps, resetGps]);
+
+  const distances = useMemo(() => {
+    const map = new Map<string, number | null>();
+    rides.forEach((r) => map.set(r.id, haversineKm(gps.position, r.origin)));
+    return map;
+  }, [rides, gps.position]);
+
+  const pins: MapPin[] = useMemo(
+    () =>
+      online
+        ? rides
+            .filter((r) => isValidCoordinate(r.origin))
+            .map((r, i) => ({ id: r.id, lat: r.origin.lat, lng: r.origin.lng, label: String(i + 1), selected: r.id === focusedId }))
+        : [],
+    [online, rides, focusedId]
+  );
+  const focusedRide = online ? rides.find((r) => r.id === focusedId) ?? null : null;
+  const focusedKm = focusedRide ? distances.get(focusedRide.id) ?? null : null;
+  const focusedMin = approxMinutes(focusedKm);
 
   const myBids = driverBids;
 
@@ -60,6 +93,39 @@ export function DriverRadar() {
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding">
+        <div className="mb-4 overflow-hidden rounded-2xl">
+          <LocationMap
+            height="320px"
+            dark={dark}
+            gpsPosition={online ? gps.position : null}
+            gpsStatus={gps.status}
+            gpsError={online ? gps.error : null}
+            onRequestGps={() => {
+              setRecenter((n) => n + 1);
+              if (online && !gps.position) void startGps();
+            }}
+            recenterSignal={recenter}
+            pins={pins}
+            onPinClick={setFocusedId}
+          />
+        </div>
+        {focusedRide && (
+          <div className="mb-4 rounded-2xl p-4" style={{ background: 'var(--ion-card-background)', border: '2px solid #00C853' }}>
+            <div className="text-base font-bold">{focusedRide.passengerName}</div>
+            <div className="text-sm">Origem: {focusedRide.origin.neighborhood ?? 'Bairro nao informado'}</div>
+            <div className="text-sm">Destino: {focusedRide.destination.neighborhood ?? 'Bairro nao informado'}</div>
+            <div className="text-sm">Embarque: {focusedRide.origin.address}</div>
+            <div className="mt-1 text-xs" style={{ color: 'var(--ion-color-medium)' }}>
+              Ate o embarque: {formatApproxDistance(focusedKm)}
+              {focusedMin !== null ? ` · ~${focusedMin} min` : ''}. Distancia aproximada, nao e o percurso real pelas ruas.
+            </div>
+            {!myBids.find((b) => b.rideId === focusedRide.id) && (
+              <IonButton expand="block" color="success" className="mt-2" onClick={() => setSelected(focusedRide)}>
+                Fazer oferta
+              </IonButton>
+            )}
+          </div>
+        )}
         <div
           className="mb-4 flex items-center justify-between rounded-2xl p-4"
           style={{ background: 'var(--ion-card-background)' }}
@@ -90,9 +156,10 @@ export function DriverRadar() {
               <div
                 key={ride.id}
                 className="mb-3 rounded-2xl p-4"
+                onClick={() => setFocusedId(ride.id)}
                 style={{
                   background: 'var(--ion-card-background)',
-                  border: '1px solid rgba(255,107,0,0.12)',
+                  border: ride.id === focusedId ? '2px solid #00C853' : '1px solid rgba(255,107,0,0.12)',
                 }}
               >
                 <div className="mb-2 flex items-start justify-between">
@@ -105,6 +172,7 @@ export function DriverRadar() {
                   <div className="text-right text-xs font-semibold" style={{ color: 'var(--ion-color-medium)' }}>
                     {ride.distanceKm.toFixed(1)} km
                     <div>{ride.estimatedMinutes} min</div>
+                    <div className="font-medium">Ate o embarque: {formatApproxDistance(distances.get(ride.id) ?? null)}</div>
                   </div>
                 </div>
                 <div className="mb-3 space-y-1 text-sm">
@@ -119,7 +187,10 @@ export function DriverRadar() {
                     </div>
                   </div>
                 ) : (
-                  <IonButton expand="block" color="success" onClick={() => setSelected(ride)}>
+                  <IonButton expand="block" color="success" onClick={(e) => {
+                      e.stopPropagation();
+                      setSelected(ride);
+                    }}>
                     Fazer oferta
                   </IonButton>
                 )}

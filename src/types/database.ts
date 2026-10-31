@@ -29,12 +29,12 @@ export interface RideRow {
   id: string;
   passenger_id: string;
   driver_id: string | null;
-  origin_lat: number;
-  origin_lng: number;
+  origin_lat: number | null;
+  origin_lng: number | null;
   origin_address: string;
   origin_neighborhood: string | null;
-  dest_lat: number;
-  dest_lng: number;
+  dest_lat: number | null;
+  dest_lng: number | null;
   dest_address: string;
   dest_neighborhood: string | null;
   suggested_price: number | string;
@@ -68,7 +68,7 @@ export interface Database {
     Tables: {
       profiles: { Row: ProfileRow; Insert: Partial<ProfileRow> & { id: string; full_name: string }; Update: Partial<ProfileRow> };
       vehicle_details: { Row: VehicleRow; Insert: Partial<VehicleRow> & { driver_id: string; plate: string; vehicle_model: string }; Update: Partial<VehicleRow> };
-      rides: { Row: RideRow; Insert: Partial<RideRow> & { passenger_id: string; origin_lat: number; origin_lng: number; origin_address: string; dest_lat: number; dest_lng: number; dest_address: string; suggested_price: number; estimated_minutes: number; distance_km: number }; Update: Partial<RideRow> };
+      rides: { Row: RideRow; Insert: Partial<RideRow> & { passenger_id: string; origin_lat: number | null; origin_lng: number | null; origin_address: string; dest_lat: number | null; dest_lng: number | null; dest_address: string; suggested_price: number; estimated_minutes: number; distance_km: number }; Update: Partial<RideRow> };
       bids: { Row: BidRow; Insert: Partial<BidRow> & { ride_id: string; driver_id: string; amount: number; eta_minutes: number }; Update: Partial<BidRow> };
     };
     Functions: {
