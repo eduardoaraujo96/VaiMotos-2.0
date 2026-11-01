@@ -98,6 +98,13 @@ request can repeat its alert at most every 30 seconds; responding, going
 offline, or leaving the foreground stops further alerts. This repository does
 not play that sound while the app is backgrounded or closed.
 
+On Android, the existing alert audio is also packaged as a native notification
+sound at `android/app/src/main/res/raw/ride_notification.wav`. Push registration
+creates the `rides_alarm_v2` notification channel with this sound; the FCM
+payload must use the same channel ID. Android fixes a channel's sound when it is
+first created, so the versioned channel ID is intentional and replaces the
+previous silent/default `rides` channel on upgraded installs.
+
 ## Driver push notifications (Android)
 
 Push notifications use the Capacitor Push Notifications plugin and Firebase

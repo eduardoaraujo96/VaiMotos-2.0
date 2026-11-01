@@ -137,18 +137,24 @@ export async function signIn(email: string, password: string): Promise<User> {
 }
 
 export async function restoreSession(): Promise<User | null> {
+  const cachedUser = getStoredUser();
   if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase.auth.getSession();
-    const sessionUser = data.session?.user;
-    if (sessionUser) {
-      const profile = await fetchProfile(sessionUser.id, sessionUser.email ?? '');
-      if (profile) {
-        persistUser(profile);
-        return profile;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      const sessionUser = data.session?.user;
+      if (sessionUser) {
+        const profile = await fetchProfile(sessionUser.id, sessionUser.email ?? '');
+        if (profile) {
+          persistUser(profile);
+          return profile;
+        }
       }
+    } catch (error) {
+      console.error('Não foi possível restaurar a sessão do Supabase:', error);
     }
   }
-  return getStoredUser();
+  return cachedUser;
 }
 
 export async function updateCurrentUser(user: User, payload: Parameters<typeof saveProfile>[1]): Promise<User> {

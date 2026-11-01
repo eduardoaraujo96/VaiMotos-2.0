@@ -234,9 +234,9 @@ Deno.serve(async (request) => {
                 android: {
                   priority: 'HIGH',
                   notification: {
-                    channel_id: 'rides',
+                    channel_id: 'rides_alarm_v2',
                     tag: `ride-${rideId}`,
-                    sound: 'default',
+                    sound: 'ride_notification',
                   },
                 },
                 data: {

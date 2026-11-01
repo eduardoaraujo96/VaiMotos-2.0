@@ -63,10 +63,11 @@ export async function requestDriverPushPermission(): Promise<PushPermission> {
   if (!(await isFirebaseConfigured())) return 'unavailable';
 
   await PushNotifications.createChannel({
-    id: 'rides',
+    id: 'rides_alarm_v2',
     name: 'Solicitações de corrida',
     description: 'Novas solicitações e cancelamentos de corridas',
     importance: 4,
+    sound: 'ride_notification.wav',
     vibration: true,
   });
   await PushNotifications.register();
