@@ -1,11 +1,22 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { PushNotifications, type ActionPerformed, type PushNotificationSchema } from '@capacitor/push-notifications';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { getSupabaseClient } from './supabaseClient';
 
-export type PushPermission = 'granted' | 'denied' | 'unsupported';
+export type PushPermission = 'granted' | 'denied' | 'unsupported' | 'unavailable';
+
+interface FirebaseReadinessPlugin {
+  isConfigured(): Promise<{ configured: boolean }>;
+}
+
+const FirebaseReadiness = registerPlugin<FirebaseReadinessPlugin>('FirebaseReadiness');
 
 const isAndroidApp = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
+async function isFirebaseConfigured(): Promise<boolean> {
+  const { configured } = await FirebaseReadiness.isConfigured();
+  return configured;
+}
 
 function getDeviceId(): string {
   const key = 'vaimoto.push_device_id';
@@ -48,6 +59,8 @@ export async function requestDriverPushPermission(): Promise<PushPermission> {
     permission = await PushNotifications.requestPermissions();
   }
   if (permission.receive !== 'granted') return 'denied';
+
+  if (!(await isFirebaseConfigured())) return 'unavailable';
 
   await PushNotifications.createChannel({
     id: 'rides',
@@ -97,29 +110,13 @@ export async function setupDriverPushNotifications(
   const resolvedHandles = await Promise.all(listenerPromises);
   handles.push(...resolvedHandles);
 
-  try {
-    const permission = await PushNotifications.checkPermissions();
-    if (active && permission.receive === 'granted') {
-      await PushNotifications.createChannel({
-        id: 'rides',
-        name: 'Solicitações de corrida',
-        description: 'Novas solicitações e cancelamentos de corridas',
-        importance: 4,
-        vibration: true,
-      });
-      await PushNotifications.register();
-    }
-  } catch (error) {
-    dispose();
-    throw error;
-  }
-
   return dispose;
 }
 
 export async function clearDriverPushRegistration(driverId: string): Promise<void> {
   if (!isAndroidApp()) return;
 
+  const firebaseConfigured = await isFirebaseConfigured();
   const client = getSupabaseClient();
   let removalError: Error | null = null;
   if (client) {
@@ -130,11 +127,13 @@ export async function clearDriverPushRegistration(driverId: string): Promise<voi
       .eq('device_id', getDeviceId());
     if (error) removalError = error;
   }
-  try {
-    await PushNotifications.unregister();
-  } catch (error) {
-    if (!removalError) {
-      removalError = error instanceof Error ? error : new Error('Falha ao cancelar o registro push do dispositivo.');
+  if (firebaseConfigured) {
+    try {
+      await PushNotifications.unregister();
+    } catch (error) {
+      if (!removalError) {
+        removalError = error instanceof Error ? error : new Error('Falha ao cancelar o registro push do dispositivo.');
+      }
     }
   }
   if (removalError) throw removalError;

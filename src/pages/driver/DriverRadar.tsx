@@ -203,6 +203,10 @@ export function DriverRadar() {
           setToast('Permita notificações nas configurações do Android para receber corridas com o app fechado.');
           return;
         }
+        if (permission === 'unavailable') {
+          setToast('Notificações push não configuradas neste aplicativo. Contate o suporte.');
+          return;
+        }
       }
       if (online) {
         stopRideNotificationSound();

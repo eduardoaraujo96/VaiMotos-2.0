@@ -147,6 +147,9 @@ notification replaces the request rather than disappearing without explanation.
 Force-stop, disabled Android notifications, device connectivity, and battery
 restrictions can delay delivery; an Android device and valid Firebase/Supabase
 configuration are required to verify background delivery.
+FCM is not registered during app startup. Registration occurs after the driver
+chooses to go online and the Android app confirms that Firebase configuration
+is present, so the app remains usable when push setup has not yet been added.
 
 ## Passenger place search
 
