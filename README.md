@@ -150,6 +150,8 @@ configuration are required to verify background delivery.
 FCM is not registered during app startup. Registration occurs after the driver
 chooses to go online and the Android app confirms that Firebase configuration
 is present, so the app remains usable when push setup has not yet been added.
+Without that configuration, drivers can still go online and receive foreground
+requests, but background push delivery is unavailable.
 
 ## Passenger place search
 

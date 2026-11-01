@@ -204,8 +204,7 @@ export function DriverRadar() {
           return;
         }
         if (permission === 'unavailable') {
-          setToast('Notificações push não configuradas neste aplicativo. Contate o suporte.');
-          return;
+          setToast('Push indisponível: você pode ficar online, mas receberá pedidos apenas com o app aberto.');
         }
       }
       if (online) {
