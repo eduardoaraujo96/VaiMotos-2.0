@@ -20,16 +20,24 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { useBidding } from '../../hooks/useBidding';
+import { loadRideById } from '../../services/bidding';
+import {
+  playRideNotificationSound,
+  stopRideNotificationSound,
+  unlockRideNotificationAudio,
+} from '../../services/rideNotifications';
+import { isSupabaseConfigured } from '../../services/supabaseClient';
 import { formatBRL } from '../../utils/format';
 import { formatApproxKm, haversineKm, isValidLatLng } from '../../utils/geo';
 import type { Ride } from '../../types';
 
 export function DriverRadar() {
-  const { user } = useAuth();
+  const { user, setDriverOnline } = useAuth();
   const history = useHistory();
   const { dark, toggle } = useThemeMode();
   const { rides, makeOffer, driverBids, error } = useBidding({ viewer: user });
-  const [online, setOnline] = useState(true);
+  const online = Boolean(user?.isOnline);
+  const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [selected, setSelected] = useState<Ride | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -46,13 +54,84 @@ export function DriverRadar() {
 
   const myBids = driverBids;
   const openedRide = useRef<string | null>(null);
+  const activeRef = useRef(true);
   const visibleRides = online ? rides : [];
+  const knownRideIds = useRef<Set<string> | null>(null);
+  const notifiedRideIds = useRef(new Set<string>());
+  const pendingAlerts = useRef<string[]>([]);
+  const driverApproved = user?.role === 'driver' && user.driverApprovalStatus === 'approved';
+  const availableRides = rides.filter((ride) =>
+    ride.status === 'bidding'
+    && Date.parse(ride.expiresAt) > Date.now()
+    && !driverBids.some((bid) => bid.rideId === ride.id)
+  );
+  pendingAlerts.current = availableRides
+    .map((ride) => ride.id)
+    .filter((rideId) => notifiedRideIds.current.has(rideId));
+  const availableRidesKey = availableRides.map((ride) => ride.id).join('|');
+
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || error || !driverApproved || !online || availabilityBusy) return;
+    if (knownRideIds.current === null) {
+      knownRideIds.current = new Set(rides.map((ride) => ride.id));
+      return;
+    }
+
+    const known = knownRideIds.current;
+    const newlyAvailable = availableRides.filter((ride) => !known.has(ride.id));
+    rides.forEach((ride) => known.add(ride.id));
+    newlyAvailable.forEach((ride) => notifiedRideIds.current.add(ride.id));
+    pendingAlerts.current = availableRides
+      .map((ride) => ride.id)
+      .filter((rideId) => notifiedRideIds.current.has(rideId));
+    if (newlyAvailable.length > 0 && document.visibilityState === 'visible') {
+      void playRideNotificationSound();
+    }
+  }, [availabilityBusy, availableRides, driverApproved, error, online, rides]);
+
+  useEffect(() => {
+    if (!online || !driverApproved || availabilityBusy || !availableRidesKey) stopRideNotificationSound();
+  }, [availabilityBusy, availableRidesKey, driverApproved, online]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !online || !driverApproved || availabilityBusy) return undefined;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      const currentIds = pendingAlerts.current;
+      if (currentIds.length > 0) void playRideNotificationSound();
+    }, 30_000);
+    const stopWhenHidden = () => {
+      if (document.visibilityState !== 'visible') stopRideNotificationSound();
+    };
+    document.addEventListener('visibilitychange', stopWhenHidden);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', stopWhenHidden);
+    };
+  }, [availabilityBusy, driverApproved, online]);
 
   useEffect(() => {
     const accepted = myBids.find((bid) => bid.status === 'accepted');
     if (!accepted || openedRide.current === accepted.rideId) return;
     openedRide.current = accepted.rideId;
-    history.push(`/corrida/${accepted.rideId}`);
+    void loadRideById(accepted.rideId)
+      .then((ride) => {
+        if (activeRef.current && ride && ['awarded', 'en_route', 'in_progress'].includes(ride.status)) {
+          history.push(`/corrida/${accepted.rideId}`);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (activeRef.current) {
+          setToast(cause instanceof Error ? cause.message : 'Não foi possível abrir a corrida confirmada.');
+        }
+      });
   }, [history, myBids]);
   const highlighted = visibleRides.find((ride) => ride.id === highlightedId) ?? null;
 
@@ -87,6 +166,7 @@ export function DriverRadar() {
     setSubmitting(true);
     try {
       await makeOffer(selected, amount, etaMinutes);
+      stopRideNotificationSound();
       setToast(`Oferta ${formatBRL(amount)} enviada. O passageiro compara em privado.`);
       setSelected(null);
     } catch (err) {
@@ -96,15 +176,48 @@ export function DriverRadar() {
     }
   };
 
-  const toggleOnline = () => {
+  const toggleOnline = async () => {
+    unlockRideNotificationAudio();
     if (online) {
-      setOnline(false);
+      stopRideNotificationSound();
       setHighlightedId(null);
       setTargetCenter(null);
-      return;
     }
-    setOnline(true);
+    setAvailabilityBusy(true);
+    try {
+      await setDriverOnline(!online);
+    } catch (cause) {
+      setToast(cause instanceof Error ? cause.message : 'Não foi possível atualizar sua disponibilidade.');
+    } finally {
+      setAvailabilityBusy(false);
+    }
   };
+
+  if (user?.role === 'driver' && user.driverApprovalStatus !== 'approved') {
+    const rejected = user.driverApprovalStatus === 'rejected';
+    return (
+      <IonPage>
+        <IonHeader className="ion-no-border">
+          <IonToolbar>
+            <IonTitle>Cadastro do mototaxista</IonTitle>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent className="ion-padding">
+          <section className="rounded-2xl p-5" style={{ background: 'var(--ion-card-background)' }}>
+            <h2 className="text-lg font-bold">{rejected ? 'Cadastro não aprovado' : 'Cadastro em análise'}</h2>
+            <p className="mt-2 text-sm" style={{ color: 'var(--ion-color-medium)' }}>
+              {rejected
+                ? 'Seu cadastro foi rejeitado. Atualize os dados do veículo e fale com o suporte para solicitar uma nova análise.'
+                : 'O acesso ao radar será liberado depois que o Desenvolvedor aprovar seu cadastro.'}
+            </p>
+            <IonButton className="mt-3" expand="block" onClick={() => history.push('/driver/profile')}>
+              Ver meu perfil
+            </IonButton>
+          </section>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   return (
     <IonPage>
@@ -135,7 +248,7 @@ export function DriverRadar() {
                 {online ? 'Online no radar' : 'Offline'}
               </div>
             </div>
-            <IonButton color={online ? 'medium' : 'success'} onClick={toggleOnline}>
+            <IonButton color={online ? 'medium' : 'success'} disabled={availabilityBusy} onClick={() => void toggleOnline()}>
               {online ? 'Pausar' : 'Ficar online'}
             </IonButton>
           </div>
@@ -182,7 +295,7 @@ export function DriverRadar() {
                     className="mb-3 rounded-2xl p-4"
                     style={{
                       background: 'var(--ion-card-background)',
-                      border: active ? '1px solid #FF6B00' : '1px solid rgba(255,107,0,0.12)',
+                      border: active ? '1px solid #15D164' : '1px solid rgba(21,209,100,0.12)',
                     }}
                     onClick={() => selectRide(ride)}
                   >

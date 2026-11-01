@@ -65,7 +65,7 @@ export function BidPriceModal({ ride, isOpen, submitting = false, onDismiss, onS
 
         <div
           className="mb-4 flex items-start gap-2 rounded-2xl p-3 text-xs"
-          style={{ background: 'rgba(255,107,0,0.08)', color: 'var(--ion-text-color)' }}
+          style={{ background: 'rgba(21,209,100,0.08)', color: 'var(--ion-text-color)' }}
         >
           <IonIcon icon={lockClosedOutline} color="primary" className="mt-0.5" />
           <span>

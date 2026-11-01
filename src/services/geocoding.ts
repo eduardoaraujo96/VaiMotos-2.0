@@ -4,8 +4,10 @@ import {
   isNearbyMunicipality,
   MATOES,
   MATOES_VIEWBOX,
+  queryMentionsMatoes,
   shouldBiasToMatoes,
 } from '../data/region';
+import { normalizePlaceText } from '../data/localPlaces';
 import { haversineKm, isValidLatLng } from '../utils/geo';
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
@@ -69,8 +71,13 @@ function formatAddress(result: NominatimResult): string {
   const number = address.house_number;
   const area = neighborhoodFrom(address);
   const city = municipalityFrom(address);
-  const parts = [street && number ? `${street}, ${number}` : street || result.name, area, city].filter(Boolean);
-  return parts.length > 0 ? parts.join(' — ') : result.display_name;
+  const parts = [street && number ? `${street}, ${number}` : street || result.name, area, city].filter(
+    (part): part is string => Boolean(part)
+  );
+  const uniqueParts = parts.filter(
+    (part, index) => parts.findIndex((candidate) => normalizePlaceText(candidate) === normalizePlaceText(part)) === index
+  );
+  return uniqueParts.length > 0 ? uniqueParts.join(' — ') : result.display_name;
 }
 
 function toLocation(result: NominatimResult): LocationPoint {
@@ -94,8 +101,9 @@ function placeText(point: LocationPoint): string {
 }
 
 function rankScore(point: LocationPoint, query: string): number {
-  const text = placeText(point).toLowerCase();
-  const term = query.trim().toLowerCase();
+  const text = normalizePlaceText(placeText(point));
+  const term = normalizePlaceText(query);
+  const tokens = term.split(' ').filter(Boolean);
   let score = 0;
   if (isMatoesAddress(text)) score += 400;
   else if (isNearbyMunicipality(text)) score += 180;
@@ -106,8 +114,9 @@ function rankScore(point: LocationPoint, query: string): number {
     else if (distance <= 80) score += 20;
     else score -= Math.min(180, Math.round(distance));
   }
-  if (term && text.includes(term)) score += 50;
-  if (point.name && point.name.toLowerCase().includes(term)) score += 40;
+  if (term && text.includes(term)) score += 100;
+  if (tokens.length && tokens.every((token) => text.includes(token))) score += 80;
+  if (point.name && normalizePlaceText(point.name).includes(term)) score += 40;
   return score;
 }
 
@@ -140,7 +149,11 @@ function waitForSlot(): Promise<void> {
   return next;
 }
 
-async function nominatim<T>(path: string, params: Record<string, string>): Promise<T> {
+async function nominatim<T>(
+  path: string,
+  params: Record<string, string>,
+  signal?: AbortSignal
+): Promise<T> {
   if (!navigator.onLine) {
     throw new Error('Sem conexao para buscar enderecos.');
   }
@@ -148,6 +161,7 @@ async function nominatim<T>(path: string, params: Record<string, string>): Promi
   const url = new URL(path, NOMINATIM);
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
   const response = await fetch(url.toString(), {
+    signal,
     headers: {
       Accept: 'application/json',
       'Accept-Language': 'pt-BR',
@@ -191,35 +205,78 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Location
   }
 }
 
-function buildSearchQuery(query: string): string {
+const PLACE_CATEGORY_PREFIX =
+  /^(?:posto(?:\s+de\s+combust[ií]vel)?|mercado|escola|hospital|pra[cç]a|igreja|farm[aá]cia|rodovi[aá]ria)\s+/i;
+
+function buildSearchQueries(query: string): string[] {
   const trimmed = query.trim();
-  if (!shouldBiasToMatoes(trimmed)) return trimmed;
-  return `${trimmed}, Matões, Maranhão, Brasil`;
+  const withoutCategory = trimmed.replace(PLACE_CATEGORY_PREFIX, '').trim();
+  const candidates = [trimmed];
+  if (withoutCategory && normalizePlaceText(withoutCategory) !== normalizePlaceText(trimmed)) {
+    candidates.push(withoutCategory);
+  }
+  if (shouldBiasToMatoes(trimmed) && !queryMentionsMatoes(trimmed)) {
+    candidates.push(`${trimmed}, Matões, Maranhão`);
+  }
+  return [...new Set(candidates.map((candidate) => candidate.trim()).filter(Boolean))].slice(0, 3);
 }
 
-export async function searchAddresses(query: string): Promise<LocationPoint[]> {
+function mapAndRank(results: NominatimResult[], query: string): LocationPoint[] {
+  return dedupe(
+    results
+      .map(toLocation)
+      .filter((point) => isValidLatLng(point.lat, point.lng))
+      .sort((a, b) => rankScore(b, query) - rankScore(a, query))
+  );
+}
+
+function isNearServiceArea(point: LocationPoint): boolean {
+  if (isMatoesAddress(placeText(point)) || isNearbyMunicipality(placeText(point))) return true;
+  const distance = haversineKm(point, MATOES);
+  return distance != null && distance <= 100;
+}
+
+export async function searchAddresses(query: string, signal?: AbortSignal): Promise<LocationPoint[]> {
   const trimmed = query.trim();
-  if (trimmed.length < 3) return [];
-  const key = trimmed.toLowerCase();
+  if (trimmed.length < 2) return [];
+  const key = normalizePlaceText(trimmed);
   const cached = searchCache.get(key);
   if (cached) return cached;
 
   const biased = shouldBiasToMatoes(trimmed);
-  const results = await nominatim<NominatimResult[]>('/search', {
-    format: 'jsonv2',
-    q: buildSearchQuery(trimmed),
-    addressdetails: '1',
-    limit: String(SEARCH_LIMIT),
-    countrycodes: 'br',
-    viewbox: MATOES_VIEWBOX,
-    bounded: biased ? '0' : '0',
-  });
-  const points = dedupe(
-    results
-      .map(toLocation)
-      .filter((point) => isValidLatLng(point.lat, point.lng))
-      .sort((a, b) => rankScore(b, trimmed) - rankScore(a, trimmed))
-  );
+  const queries = buildSearchQueries(trimmed);
+  let points: LocationPoint[] = [];
+
+  for (const searchQuery of queries) {
+    const results = await nominatim<NominatimResult[]>('/search', {
+      format: 'jsonv2',
+      q: searchQuery,
+      addressdetails: '1',
+      limit: String(SEARCH_LIMIT),
+      countrycodes: 'br',
+      viewbox: MATOES_VIEWBOX,
+      bounded: biased ? '1' : '0',
+    }, signal);
+    points = mapAndRank(results, trimmed);
+    if (points.length > 0) break;
+  }
+
+  if (biased && points.length === 0) {
+    for (const searchQuery of queries) {
+      const results = await nominatim<NominatimResult[]>('/search', {
+        format: 'jsonv2',
+        q: searchQuery,
+        addressdetails: '1',
+        limit: String(SEARCH_LIMIT),
+        countrycodes: 'br',
+        viewbox: MATOES_VIEWBOX,
+        bounded: '0',
+      }, signal);
+      points = mapAndRank(results, trimmed).filter(isNearServiceArea);
+      if (points.length > 0) break;
+    }
+  }
+
   searchCache.set(key, points);
   return points;
 }

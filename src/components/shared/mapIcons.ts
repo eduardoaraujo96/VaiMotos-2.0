@@ -24,7 +24,7 @@ export function gpsIcon(): L.DivIcon {
   });
 }
 
-export const ORIGIN_COLOR = '#FF6B00';
-export const DEST_COLOR = '#1A1A2E';
-export const RIDE_COLOR = '#FF6B00';
+export const ORIGIN_COLOR = '#15D164';
+export const DEST_COLOR = '#0E9F50';
+export const RIDE_COLOR = '#15D164';
 export const DRIVER_COLOR = '#00C853';

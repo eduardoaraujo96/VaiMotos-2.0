@@ -47,7 +47,7 @@ export function LoginPage() {
           <h1 className="mt-8 text-3xl font-extrabold leading-tight">
             Chegue mais rapido.
             <br />
-            <span style={{ color: '#FF6B00' }}>Va de moto.</span>
+            <span style={{ color: '#15D164' }}>Va de moto.</span>
           </h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--ion-color-medium)' }}>
             Entre com sua conta. O app muda sozinho para Passageiro ou Mototaxista.

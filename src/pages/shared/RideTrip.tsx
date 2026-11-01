@@ -6,6 +6,7 @@ import {
   IonHeader,
   IonIcon,
   IonPage,
+  IonSpinner,
   IonTitle,
   IonToast,
   IonToolbar,
@@ -14,35 +15,44 @@ import { chatbubbleEllipsesOutline, locateOutline, moonOutline, sunnyOutline } f
 import { useHistory, useParams } from 'react-router-dom';
 import { LocationMap } from '../../components/shared/LocationMap';
 import { RideChatPanel } from '../../components/ride/RideChatPanel';
+import { RideReviewForm } from '../../components/ride/RideReviewForm';
+import { UnreadDot } from '../../components/shared/UnreadDot';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBidding } from '../../hooks/useBidding';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useRideChat } from '../../hooks/useRideChat';
+import { useUnreadRideMessages } from '../../hooks/useUnreadRideMessages';
 import { useThemeMode } from '../../hooks/useThemeMode';
-import { biddingStore } from '../../services/biddingStore';
+import { fetchRideParticipant, updateRideStatus } from '../../services/rides';
 import { publishRideLocation, subscribeRideLocation, type RidePeerLocation } from '../../services/rideSession';
+import type { Ride, User } from '../../types';
 import { formatBRL } from '../../utils/format';
 import { formatApproxKm, haversineKm, isValidLatLng } from '../../utils/geo';
+import { getRideDisplayStatus, paymentMethodLabel, rideStatusLabel } from '../../utils/rideStatus';
 
 export function RideTrip() {
   const { rideId } = useParams<{ rideId: string }>();
   const history = useHistory();
   const { user } = useAuth();
+  const { unreadCount } = useUnreadRideMessages(user);
+  const [chatOpen, setChatOpen] = useState(false);
   const { dark, toggle } = useThemeMode();
-  const { activeRide } = useBidding({ viewer: user, rideId });
-  const { messages, send, discard } = useRideChat(rideId, user);
+  const { activeRide, bids, error: rideError, loading: rideLoading, refresh } = useBidding({ viewer: user, rideId });
+  const { messages, send, loading: chatLoading, sending, error: chatError } = useRideChat(rideId, user, chatOpen);
   const {
     position,
     error: gpsError,
     errorCode,
     loading: gpsLoading,
     permissionDenied,
-    refresh,
+    refresh: refreshLocation,
     startWatch,
   } = useGeolocation({ enabled: true, watch: true });
   const [peer, setPeer] = useState<RidePeerLocation | null>(null);
+  const [participant, setParticipant] = useState<User | null>(null);
+  const [participantError, setParticipantError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
-  const [chatOpen, setChatOpen] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [targetCenter, setTargetCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -70,36 +80,73 @@ export function RideTrip() {
     }
   }, [activeRide]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const participantId = activeRide && user
+      ? user.role === 'driver' ? activeRide.passengerId : activeRide.driverId
+      : undefined;
+    setParticipant(null);
+    setParticipantError(null);
+    if (!participantId) return () => {
+      cancelled = true;
+    };
+    void fetchRideParticipant(participantId)
+      .then((profile) => {
+        if (!cancelled) setParticipant(profile);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setParticipantError(cause instanceof Error ? cause.message : 'Não foi possível carregar os dados do participante.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRide?.driverId, activeRide?.passengerId, user]);
+
   const extraMarkers = useMemo(() => {
     if (!peer || !isValidLatLng(peer.lat, peer.lng)) return [];
-    return [
-      {
-        id: 'peer',
-        lat: peer.lat,
-        lng: peer.lng,
-        selected: true,
-        color: user?.role === 'passenger' ? '#00C853' : '#FF6B00',
-      },
-    ];
+    return [{
+      id: 'peer',
+      lat: peer.lat,
+      lng: peer.lng,
+      selected: true,
+      color: '#15D164',
+    }];
   }, [peer, user?.role]);
 
   const distanceToPickup = useMemo(() => {
     if (!position || !activeRide) return null;
-    return haversineKm(position, activeRide.origin);
+    const distance = haversineKm(position, activeRide.origin);
+    return Number.isFinite(distance) ? distance : null;
   }, [activeRide, position]);
 
-  const home = user?.role === 'driver' ? '/driver/radar' : '/passenger/home';
+  const home = user?.role === 'driver' ? '/driver/radar' : '/passenger/rides';
+  const status = activeRide ? getRideDisplayStatus(activeRide, bids) : null;
+  const acceptedBid = bids.find((bid) => bid.status === 'accepted');
+  const participantName = participant?.name
+    ?? (user?.role === 'passenger' ? acceptedBid?.driverName : activeRide?.passengerName)
+    ?? (user?.role === 'driver' ? 'Passageiro' : 'Mototaxista');
+  const participantPhoto = participant?.avatarUrl ?? (user?.role === 'passenger' ? acceptedBid?.driverPhoto : undefined);
 
-  const finish = (status: 'completed' | 'cancelled') => {
-    if (activeRide) {
-      biddingStore.publish({ type: 'ride.updated', ride: { ...activeRide, status } });
+  const nextDriverStatus: 'en_route' | 'in_progress' | 'completed' | null =
+    status === 'confirmed' ? 'en_route' : status === 'en_route' ? 'in_progress' : status === 'in_progress' ? 'completed' : null;
+
+  const transition = async (nextStatus: 'en_route' | 'in_progress' | 'completed' | 'cancelled') => {
+    if (!activeRide || busy) return;
+    setBusy(true);
+    try {
+      await updateRideStatus(activeRide, nextStatus);
+      await refresh();
+      if (nextStatus === 'cancelled') setToast('Corrida cancelada.');
+      if (nextStatus === 'completed') setToast('Corrida finalizada.');
+    } catch (cause) {
+      setToast(cause instanceof Error ? cause.message : 'Não foi possível atualizar a corrida.');
+    } finally {
+      setBusy(false);
     }
-    discard();
-    history.replace(home);
   };
 
   const locateMe = async () => {
-    const result = await refresh();
+    const result = await refreshLocation();
     if (!result.ok) {
       setToast(result.message);
       return;
@@ -108,15 +155,26 @@ export function RideTrip() {
     await startWatch();
   };
 
+  const showChat = Boolean(activeRide?.driverId);
+  const canCancel = user?.role === 'passenger'
+    ? Boolean(status && ['searching', 'offered', 'confirmed'].includes(status))
+    : user?.role === 'driver' && Boolean(status && ['confirmed', 'en_route', 'in_progress'].includes(status));
+  const terminal = status === 'completed' || status === 'cancelled' || status === 'expired';
+
   return (
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar>
           <IonTitle>Corrida</IonTitle>
           <IonButtons slot="end">
-            <IonButton onClick={() => setChatOpen((open) => !open)}>
-              <IonIcon icon={chatbubbleEllipsesOutline} />
-            </IonButton>
+            {showChat && (
+              <IonButton aria-label={chatOpen ? 'Fechar chat' : 'Abrir chat'} onClick={() => setChatOpen((open) => !open)}>
+                <span className="relative inline-flex">
+                  <IonIcon icon={chatbubbleEllipsesOutline} />
+                  <UnreadDot visible={unreadCount > 0} />
+                </span>
+              </IonButton>
+            )}
             <IonButton onClick={toggle}>
               <IonIcon icon={dark ? sunnyOutline : moonOutline} />
             </IonButton>
@@ -125,7 +183,7 @@ export function RideTrip() {
       </IonHeader>
       <IonContent scrollY={false}>
         <div className="flex h-full flex-col">
-          <div className="relative min-h-[42%] flex-1">
+          <div className="relative min-h-[30%] flex-1">
             <LocationMap
               height="100%"
               origin={activeRide?.origin}
@@ -137,53 +195,114 @@ export function RideTrip() {
               extraMarkers={extraMarkers}
               dark={dark}
               targetCenter={targetCenter}
-              onGpsClick={() => {
-                void locateMe();
-              }}
+              onGpsClick={() => void locateMe()}
             />
           </div>
-          <div className="max-h-[58%] overflow-auto p-3" style={{ background: 'var(--ion-background-color)' }}>
-            <div className="mb-3 rounded-2xl p-4" style={{ background: 'var(--ion-card-background)' }}>
-              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--ion-color-medium)' }}>
-                {user?.role === 'driver' ? 'Embarque do passageiro' : 'Seu mototaxista'}
-              </div>
-              <div className="mt-1 font-bold">{activeRide?.origin.address ?? 'Carregando corrida...'}</div>
-              <div className="mt-1 text-sm" style={{ color: 'var(--ion-color-medium)' }}>
-                Destino: {activeRide?.destination.address}
-              </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span>
-                  {activeRide?.finalPrice != null ? formatBRL(activeRide.finalPrice) : activeRide ? formatBRL(activeRide.estimatedPrice) : ''}
-                </span>
-                <span style={{ color: 'var(--ion-color-medium)' }}>
-                  {distanceToPickup == null ? 'Distancia indisponivel' : `Ate o embarque: ${formatApproxKm(distanceToPickup)}`}
-                </span>
-              </div>
-              {permissionDenied && (
-                <p className="mt-2 text-xs" style={{ color: 'var(--ion-color-medium)' }}>
-                  Permissao de GPS negada. Toque em Minha localizacao para solicitar de novo ou ative em Ajustes do Android.
-                </p>
-              )}
-              <IonButton className="mt-3" expand="block" fill="outline" onClick={() => void locateMe()}>
-                <IonIcon icon={locateOutline} slot="start" />
-                Atualizar minha localizacao
-              </IonButton>
-            </div>
-
-            {chatOpen && user && (
-              <div className="mb-3 h-56 rounded-2xl p-4" style={{ background: 'var(--ion-card-background)' }}>
-                <RideChatPanel messages={messages} user={user} onSend={(text) => send(text)} />
+          <div className="max-h-[70%] overflow-auto p-3" style={{ background: 'var(--ion-background-color)' }}>
+            {!activeRide && (
+              <div className="rounded-2xl p-4 text-sm" style={{ background: 'var(--ion-card-background)' }}>
+                {rideError ? (
+                  <>
+                    <p role="alert">{rideError}</p>
+                    <IonButton fill="clear" onClick={() => void refresh()}>Tentar novamente</IonButton>
+                  </>
+                ) : rideLoading ? (
+                  <div className="flex items-center gap-2"><IonSpinner name="crescent" /> Carregando corrida...</div>
+                ) : (
+                  <>
+                    <p>Esta corrida não foi encontrada ou não está disponível para sua conta.</p>
+                    <IonButton fill="clear" onClick={() => history.replace(home)}>Voltar ao início</IonButton>
+                  </>
+                )}
               </div>
             )}
-
-            <div className="grid grid-cols-2 gap-2">
-              <IonButton color="medium" onClick={() => finish('cancelled')}>
-                Cancelar
-              </IonButton>
-              <IonButton color="success" onClick={() => finish('completed')}>
-                Finalizar
-              </IonButton>
-            </div>
+            {activeRide && (
+              <>
+                <div className="mb-3 rounded-2xl p-4" style={{ background: 'var(--ion-card-background)' }}>
+                  <div className="text-sm font-bold">{status ? rideStatusLabel(status) : 'Status da corrida indisponível.'}</div>
+                  {rideError && <p className="mt-1 text-xs" role="alert">{rideError}</p>}
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs font-semibold uppercase" style={{ color: 'var(--ion-color-medium)' }}>Embarque</div>
+                      <div>{activeRide.origin.address || 'Local não informado'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold uppercase" style={{ color: 'var(--ion-color-medium)' }}>Destino</div>
+                      <div>{activeRide.destination.address || 'Destino não informado'}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>Valor</span><div>{formatBRL(activeRide.finalPrice ?? activeRide.estimatedPrice)}</div></div>
+                    <div><span className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>Pagamento</span><div>{paymentMethodLabel(activeRide.paymentMethod)}</div></div>
+                    <div><span className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>Solicitada em</span><div>{new Date(activeRide.createdAt).toLocaleString('pt-BR')}</div></div>
+                    <div><span className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>Distância ao embarque</span><div>{distanceToPickup == null ? 'Indisponível' : formatApproxKm(distanceToPickup)}</div></div>
+                  </div>
+                  {activeRide.driverId && (
+                    <div className="mt-4 flex items-center gap-3 border-t border-[rgba(139,139,154,0.2)] pt-3">
+                      {participantPhoto ? (
+                        <img src={participantPhoto} alt={participantName} className="h-12 w-12 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--ion-background-color)] text-xs font-bold">{participantName.slice(0, 2).toUpperCase()}</div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold">{participantName}</div>
+                        {user?.role === 'passenger' ? (
+                          <>
+                            <div className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>{participant?.vehicleModel || 'Moto não informada'}{participant?.vehicleColor ? ` · ${participant.vehicleColor}` : ''}</div>
+                            <div className="text-xs" style={{ color: 'var(--ion-color-medium)' }}>Placa: {participant?.plate || 'Não informada'}</div>
+                          </>
+                        ) : null}
+                        {participantError && <div className="text-xs text-[var(--ion-color-danger)]">{participantError}</div>}
+                      </div>
+                      {user?.role === 'passenger' && participant?.phone && (
+                        <IonButton fill="outline" href={`tel:${participant.phone}`}>Ligar</IonButton>
+                      )}
+                    </div>
+                  )}
+                  {permissionDenied && (
+                    <p className="mt-2 text-xs" style={{ color: 'var(--ion-color-medium)' }}>
+                      Permissão de GPS negada. Ative a localização nos Ajustes do Android.
+                    </p>
+                  )}
+                  <IonButton className="mt-3" expand="block" fill="outline" onClick={() => void locateMe()} disabled={gpsLoading}>
+                    <IonIcon icon={locateOutline} slot="start" />
+                    Atualizar minha localização
+                  </IonButton>
+                  {user?.role === 'driver' && nextDriverStatus && (
+                    <IonButton className="mt-2" expand="block" color="success" disabled={busy} onClick={() => void transition(nextDriverStatus)}>
+                      {busy ? 'Atualizando...' : nextDriverStatus === 'en_route' ? 'Estou a caminho' : nextDriverStatus === 'in_progress' ? 'Iniciar viagem' : 'Finalizar corrida'}
+                    </IonButton>
+                  )}
+                  {canCancel && (
+                    <IonButton className="mt-2" expand="block" fill="outline" color="medium" disabled={busy} onClick={() => void transition('cancelled')}>
+                      Cancelar corrida
+                    </IonButton>
+                  )}
+                  {terminal && (
+                    <IonButton className="mt-2" expand="block" onClick={() => history.replace(home)}>
+                      Voltar ao início
+                    </IonButton>
+                  )}
+                </div>
+                {chatOpen && showChat && user && (
+                  <div className="mb-3 h-64 rounded-2xl p-4" style={{ background: 'var(--ion-card-background)' }}>
+                    <RideChatPanel
+                      messages={messages}
+                      user={user}
+                      otherParticipantName={participantName}
+                      otherParticipantPhoto={participantPhoto}
+                      loading={chatLoading}
+                      sending={sending}
+                      error={chatError}
+                      onSend={send}
+                    />
+                  </div>
+                )}
+                {status === 'completed' && user && participant && (
+                  <RideReviewForm rideId={activeRide.id} reviewer={user} reviewedUser={participant} />
+                )}
+              </>
+            )}
           </div>
         </div>
         <IonToast isOpen={Boolean(toast)} message={toast} duration={2800} onDidDismiss={() => setToast('')} />

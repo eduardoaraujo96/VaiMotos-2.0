@@ -10,7 +10,7 @@ export function BrandMark({ compact = false }: BrandMarkProps) {
         style={{
           width: compact ? 40 : 52,
           height: compact ? 40 : 52,
-          background: 'linear-gradient(135deg, #FF6B00 0%, #FF9A3D 100%)',
+          background: 'linear-gradient(135deg, #15D164 0%, #2BD673 100%)',
           boxShadow: '0 8px 20px rgba(255, 107, 0, 0.35)',
         }}
       >

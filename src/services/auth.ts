@@ -21,17 +21,19 @@ function localUserFromSignup(payload: SignupPayload, avatarUrl?: string): User {
     role: payload.role,
     avatarUrl:
       avatarUrl ??
-      avatarDataUri(payload.name.trim(), payload.role === 'driver' ? '#FF6B00' : '#1A1A2E'),
+      avatarDataUri(payload.name.trim(), payload.role === 'driver' ? '#15D164' : '#1A1A2E'),
     rating: 5,
     homeAddress: payload.homeAddress ?? '',
     workAddress: payload.workAddress ?? '',
     plate: payload.plate ?? '',
     vehicleModel: payload.vehicleModel ?? '',
+    vehicleColor: payload.vehicleColor ?? '',
     vehicleStatus: payload.role === 'driver' ? 'pending' : undefined,
     cnhNumber: payload.cnhNumber ?? '',
     cnhStatus: payload.role === 'driver' ? 'pending' : undefined,
-    isOnline: payload.role === 'driver',
-    color: payload.role === 'driver' ? '#FF6B00' : '#1A1A2E',
+    driverApprovalStatus: payload.role === 'driver' ? 'pending' : undefined,
+    isOnline: false,
+    color: payload.role === 'driver' ? '#15D164' : '#1A1A2E',
   };
 }
 
@@ -69,6 +71,7 @@ export async function signUp(payload: SignupPayload): Promise<User> {
         workAddress: payload.workAddress,
         plate: payload.plate,
         vehicleModel: payload.vehicleModel,
+        vehicleColor: payload.vehicleColor,
         cnhNumber: payload.cnhNumber,
       }
     );
@@ -117,7 +120,9 @@ export async function signIn(email: string, password: string): Promise<User> {
       phone: String(meta.phone ?? ''),
       role: meta.role === 'driver' ? 'driver' : 'passenger',
       rating: 5,
-      avatarUrl: avatarDataUri(String(meta.full_name ?? 'VaiMoto'), '#FF6B00'),
+      avatarUrl: avatarDataUri(String(meta.full_name ?? 'VaiMoto'), '#15D164'),
+      driverApprovalStatus: meta.role === 'driver' ? 'pending' : undefined,
+      isOnline: false,
     };
     persistUser(fallback);
     return fallback;

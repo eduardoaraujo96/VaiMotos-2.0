@@ -21,7 +21,7 @@ import { useThemeMode } from '../../hooks/useThemeMode';
 import { useBidding } from '../../hooks/useBidding';
 import { reverseGeocode } from '../../services/geocoding';
 import { estimateFare } from '../../services/rides';
-import type { LocationPoint } from '../../types';
+import type { LocationPoint, RidePaymentMethod } from '../../types';
 import { formatApproxKm, haversineKm, isValidLocation } from '../../utils/geo';
 
 export function PassengerHome() {
@@ -37,6 +37,8 @@ export function PassengerHome() {
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
   const [targetCenter, setTargetCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<RidePaymentMethod>('to_agree');
+  const [panelExpanded, setPanelExpanded] = useState(false);
 
   const distanceKm = useMemo(() => {
     if (!origin || !destination) return null;
@@ -103,6 +105,7 @@ export function PassengerHome() {
         estimatedPrice: estimate.price,
         estimatedMinutes: estimate.minutes,
         distanceKm: Math.round(distanceKm * 10) / 10,
+        paymentMethod,
       });
       history.push(`/passenger/offers/${ride.id}`);
     } catch {
@@ -139,10 +142,8 @@ export function PassengerHome() {
             gpsAvailable={Boolean(position)}
             selectable
             draggable
-            showSearch
             dark={dark}
             targetCenter={targetCenter}
-            searchPlaceholder={activeField === 'destination' ? 'Buscar destino em Matões, MA' : 'Buscar embarque em Matões, MA'}
             onSelectLocation={(point) => {
               applyPoint(point);
               setTargetCenter(point);
@@ -160,23 +161,21 @@ export function PassengerHome() {
               void useGps();
             }}
           />
-          <div className="absolute bottom-0 left-0 right-0 p-3">
+          <div className="absolute bottom-0 left-0 right-0 z-[1200] p-3">
             <RideRequestCard
               origin={origin?.address ?? ''}
               destination={destination?.address ?? ''}
               activeField={activeField}
               pickupConfirmed={pickupConfirmed}
-              onOriginChange={(value) => {
-                setActiveField('origin');
-                setOrigin((current) => (current ? { ...current, address: value } : current));
-                setPickupConfirmed(false);
-              }}
-              onDestinationChange={(value) => {
-                setActiveField('destination');
-                setDestination((current) => (current ? { ...current, address: value } : current));
-              }}
               onOriginFocus={() => setActiveField('origin')}
               onDestinationFocus={() => setActiveField('destination')}
+              expanded={panelExpanded}
+              onExpandedChange={setPanelExpanded}
+              currentLocation={position}
+              onPlaceSelect={(point) => {
+                applyPoint(point);
+                setTargetCenter(point);
+              }}
               onUseGps={() => {
                 void useGps();
               }}
@@ -190,6 +189,8 @@ export function PassengerHome() {
               canRequest={pickupConfirmed && isValidLocation(origin) && isValidLocation(destination) && Boolean(estimate)}
               busy={busy}
               gpsLoading={gpsLoading}
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={setPaymentMethod}
             />
           </div>
         </div>

@@ -50,3 +50,66 @@ npx cap sync android
 3. Keep `webDir` as `dist`, run `npm run build` then `npx cap sync` after every web change. Set `android:usesCleartextTraffic="false"` and HTTPS-only Supabase URLs.
 
 Configure keys in `.env` from `.env.example` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+
+## Supabase ride tracking and chat
+
+After applying `supabase/schema.sql` to a new Supabase project, run migrations in
+`supabase/migrations/` in filename order. For an existing project, run
+`supabase/migrations/20261031_ride_tracking_and_chat.sql` once in **Supabase
+Dashboard → SQL Editor → New query**. It adds persistent ride messages, secure
+participant-only message policies, the ride status transition RPC, the ride
+payment method, and optional motorcycle color without deleting existing data.
+
+For driver earnings, history, reviews, and approval, execute
+`supabase/migrations/20261101_driver_earnings_reviews_approval.sql` after the ride
+tracking migration. The Developer account is identified by its Supabase Auth
+user UUID; seed that trusted account in the SQL Editor after the migration:
+
+```sql
+insert into public.driver_approval_admins (user_id)
+values ('<AUTH_USER_UUID>')
+on conflict (user_id) do nothing;
+```
+
+Replace `<AUTH_USER_UUID>` with the account UUID from **Supabase Dashboard →
+Authentication → Users**. Do not grant the role based on an email supplied by
+the app. The approval screen only exposes pending driver profiles through
+protected RPCs. Unapproved drivers cannot see open requests or submit offers,
+and the app keeps them out of the radar. The migration also creates reviews
+with participant-only RLS and records `completed_at`; legacy completed rides
+without a completion timestamp are assigned their request time as a best
+available historical date. Earnings show the recorded final ride fares (gross);
+the current database has no commission/fee ledger to calculate net payouts.
+
+After those migrations, execute
+`supabase/migrations/20261102_chat_unread_messages.sql` in the same SQL Editor.
+It adds `read_at` to the existing `ride_messages` table, an unread-message
+index, and recipient-only permission to mark incoming messages read. No second
+chat table is created. The app counts unread messages from the authenticated
+user's own rides and refreshes the count on Realtime, reconnection, and resume.
+Messages are marked read only after the user opens that ride's chat and its
+message history loads.
+
+The driver radar uses the supplied `src/notificacao/som_corrida.wav` (8-second
+PCM WAV) for new, available Supabase rides while the approved driver is online
+and the app is in the foreground. The first interaction with the online control
+prepares audio playback to comply with browser autoplay restrictions. A pending
+request can repeat its alert at most every 30 seconds; responding, going
+offline, or leaving the foreground stops further alerts. This repository does
+not include a push-notification plugin or server-side push sender, so sound
+alerts do not run while the app is backgrounded or closed.
+
+## Passenger place search
+
+The passenger map uses Nominatim/OpenStreetMap with a Matões-area-first search,
+accent-insensitive matching, common place-category variants, and a broader
+nearby-area fallback. The green primary color is `#15D164`; the seven-digit
+value `#15D1646` is not valid CSS hex.
+
+Local landmarks and aliases are maintained in `src/data/localPlaces.ts`.
+Coordinates there must come from a verified field survey, an authoritative
+source, or an exact OpenStreetMap feature. Do not copy the town map center as a
+business address. The current “Centro de Matões” entry is only the existing
+approximate map-center reference; no Posto Monalisa coordinates were found in
+the public Nominatim results, so that business is not assigned invented
+coordinates. Add it to the local list only after its location is verified.

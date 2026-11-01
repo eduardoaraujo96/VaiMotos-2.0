@@ -8,7 +8,7 @@ export interface RideChatMessage {
   senderName: string;
   senderRole: UserRole;
   text: string;
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface RidePeerLocation {
@@ -59,7 +59,7 @@ function ensureRoom(rideId: string): RideRoom {
   if (isSupabaseConfigured) {
     const client = getSupabaseClient();
     if (client) {
-      const channel = client.channel(`ride-live:${rideId}`, {
+      const channel = client.channel(`ride-live:${rideId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, {
         config: { broadcast: { self: false } },
       });
       channel
@@ -81,6 +81,16 @@ function ensureRoom(rideId: string): RideRoom {
 function emitChat(room: RideRoom): void {
   const snapshot = room.messages.map((item) => ({ ...item }));
   room.chatListeners.forEach((listener) => listener(snapshot));
+}
+
+function releaseRoomIfUnused(rideId: string, room: RideRoom): void {
+  if (room.chatListeners.size > 0 || room.locationListeners.size > 0) return;
+  room.broadcast?.close();
+  if (room.channel) {
+    const client = getSupabaseClient();
+    if (client) void client.removeChannel(room.channel);
+  }
+  rooms.delete(rideId);
 }
 
 type Incoming =
@@ -112,6 +122,7 @@ export function subscribeRideChat(rideId: string, listener: ChatListener): () =>
   listener(room.messages.map((item) => ({ ...item })));
   return () => {
     room.chatListeners.delete(listener);
+    releaseRoomIfUnused(rideId, room);
   };
 }
 
@@ -121,6 +132,7 @@ export function subscribeRideLocation(rideId: string, listener: LocationListener
   room.peers.forEach((location) => listener(location));
   return () => {
     room.locationListeners.delete(listener);
+    releaseRoomIfUnused(rideId, room);
   };
 }
 
@@ -140,7 +152,7 @@ export function sendRideChat(input: {
     senderName: input.senderName,
     senderRole: input.senderRole,
     text: text.slice(0, 280),
-    createdAt: Date.now(),
+    createdAt: new Date().toISOString(),
   };
   applyIncoming(input.rideId, { type: 'chat', message }, true);
   return message;

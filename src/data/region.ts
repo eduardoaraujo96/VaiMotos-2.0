@@ -45,7 +45,6 @@ export function queryMentionsMatoes(query: string): boolean {
 }
 
 export function shouldBiasToMatoes(query: string): boolean {
-  if (queryMentionsMatoes(query)) return false;
   if (OTHER_CITY_HINT.test(query)) return false;
   return true;
 }

@@ -42,6 +42,7 @@ export async function saveProfile(user: User, payload: ProfileUpdatePayload): Pr
     workAddress: payload.workAddress ?? '',
     plate: payload.plate ?? user.plate,
     vehicleModel: payload.vehicleModel ?? user.vehicleModel,
+    vehicleColor: payload.vehicleColor ?? user.vehicleColor,
     cnhNumber: payload.cnhNumber ?? user.cnhNumber,
     avatarUrl,
   };

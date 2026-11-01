@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Bid, Ride, User } from '../types';
 import {
   acceptBid,
@@ -22,48 +22,54 @@ interface UseBiddingOptions {
 }
 
 export function useBidding({ viewer, rideId }: UseBiddingOptions) {
-  const [rides, setRides] = useState<Ride[]>(() => listOpenRides());
+  const [rides, setRides] = useState<Ride[]>(() => isSupabaseConfigured ? [] : listOpenRides());
   const [bids, setBids] = useState<Bid[]>(() =>
     viewer && rideId ? listBidsForRide(rideId, viewer) : []
   );
   const [driverBids, setDriverBids] = useState<Bid[]>(() =>
     viewer?.role === 'driver' ? listBidsForDriver(viewer.id) : []
   );
+  const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const mounted = useRef(false);
+  const refreshSequence = useRef(0);
 
   const refresh = useCallback(async () => {
-    try {
-      const open = await loadOpenRides();
-      if (rideId) {
-        const current = await loadRideById(rideId);
-        setRides(current ? [current, ...open.filter((ride) => ride.id !== current.id)] : open);
-      } else {
-        setRides(open);
-      }
-      if (viewer && rideId) {
-        setBids(await loadBidsForRide(rideId, viewer));
-      } else {
-        setBids([]);
-      }
-      if (viewer?.role === 'driver') {
-        setDriverBids(await loadBidsForDriver(viewer.id));
-      } else {
-        setDriverBids([]);
-      }
-      setError(null);
-      setTick((value) => value + 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao atualizar o leilao.');
-    }
-  }, [viewer, rideId]);
+    const sequence = ++refreshSequence.current;
+    const [openResult, currentResult, rideBidsResult, driverBidsResult] = await Promise.allSettled([
+      loadOpenRides(),
+      rideId ? loadRideById(rideId) : Promise.resolve(null),
+      viewer && rideId ? loadBidsForRide(rideId, viewer) : Promise.resolve([]),
+      viewer?.role === 'driver' ? loadBidsForDriver(viewer.id) : Promise.resolve([]),
+    ]);
+    if (!mounted.current || sequence !== refreshSequence.current) return;
+    const open = openResult.status === 'fulfilled' ? openResult.value : [];
+    const current = currentResult.status === 'fulfilled' ? currentResult.value : null;
+    setRides(current ? [current, ...open.filter((ride) => ride.id !== current.id)] : open);
+    setBids(rideBidsResult.status === 'fulfilled' ? rideBidsResult.value : []);
+    setDriverBids(driverBidsResult.status === 'fulfilled' ? driverBidsResult.value : []);
+    const failure = [openResult, currentResult, rideBidsResult, driverBidsResult].find(
+      (result) => result.status === 'rejected'
+    );
+    setError(
+      failure?.status === 'rejected'
+        ? failure.reason instanceof Error ? failure.reason.message : 'Falha ao atualizar a corrida.'
+        : null
+    );
+    setLoading(false);
+  }, [rideId, viewer]);
 
   useEffect(() => {
+    mounted.current = true;
     void refresh();
     const unsubscribe = biddingStore.subscribe(() => {
       void refresh();
     });
-    return unsubscribe;
+    return () => {
+      mounted.current = false;
+      refreshSequence.current += 1;
+      unsubscribe();
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -78,10 +84,26 @@ export function useBidding({ viewer, rideId }: UseBiddingOptions) {
     });
   }, [refresh, rideId]);
 
-  const activeRide = useMemo(() => {
-    const all = biddingStore.snapshot().rides;
-    return rides.find((ride) => ride.id === rideId) ?? all.find((ride) => ride.id === rideId);
-  }, [rideId, rides, tick]);
+  useEffect(() => {
+    if (!rideId) return undefined;
+    const resume = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', resume);
+    const timer = window.setInterval(resume, 30_000);
+    return () => {
+      window.removeEventListener('online', resume);
+      document.removeEventListener('visibilitychange', resume);
+      window.clearInterval(timer);
+    };
+  }, [refresh, rideId]);
+
+  const activeRide = useMemo(
+    () => rides.find((ride) => ride.id === rideId)
+      ?? (!isSupabaseConfigured ? biddingStore.snapshot().rides.find((ride) => ride.id === rideId) : undefined),
+    [rideId, rides]
+  );
 
   const visibleBids = useMemo(() => {
     if (!viewer) return [];
@@ -117,6 +139,7 @@ export function useBidding({ viewer, rideId }: UseBiddingOptions) {
     bids: visibleBids,
     ownBid,
     driverBids,
+    loading,
     error,
     requestRide,
     makeOffer,

@@ -99,7 +99,7 @@ export function PassengerOffers() {
             className="mb-3 rounded-2xl p-4"
             style={{
               background: 'var(--ion-card-background)',
-              border: bid.status === 'accepted' ? '1px solid #00C853' : '1px solid rgba(255,107,0,0.12)',
+              border: bid.status === 'accepted' ? '1px solid #15D164' : '1px solid rgba(21,209,100,0.12)',
             }}
           >
             <div className="flex items-start gap-3">

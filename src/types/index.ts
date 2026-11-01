@@ -6,13 +6,20 @@ export type RideStatus =
   | 'en_route'
   | 'in_progress'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'searching'
+  | 'offered'
+  | 'confirmed'
+  | 'expired';
+
+export type RidePaymentMethod = 'cash' | 'pix' | 'to_agree';
 
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 
 export type VehicleStatus = 'pending' | 'active' | 'rejected';
 
 export type CnhStatus = 'pending' | 'valid' | 'expired';
+export type DriverApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface SavedLocation {
   id: string;
@@ -33,10 +40,12 @@ export interface User {
   savedLocations?: SavedLocation[];
   plate?: string;
   vehicleModel?: string;
+  vehicleColor?: string;
   vehicleStatus?: VehicleStatus;
   cnhNumber?: string;
   cnhStatus?: CnhStatus;
   isOnline?: boolean;
+  driverApprovalStatus?: DriverApprovalStatus;
   todayEarnings?: number;
   todayRides?: number;
   color?: string;
@@ -73,9 +82,11 @@ export interface Ride {
   estimatedMinutes: number;
   distanceKm: number;
   finalPrice?: number;
+  paymentMethod: RidePaymentMethod;
   acceptedBidId?: string;
   status: RideStatus;
   expiresAt: string;
+  completedAt?: string;
   createdAt: string;
 }
 
@@ -90,6 +101,16 @@ export interface Bid {
   amount: number;
   etaMinutes: number;
   status: BidStatus;
+  createdAt: string;
+}
+
+export interface RideReview {
+  id: string;
+  rideId: string;
+  reviewerId: string;
+  reviewedUserId: string;
+  rating: number;
+  comment: string | null;
   createdAt: string;
 }
 
@@ -110,6 +131,7 @@ export interface SignupPayload {
   workAddress?: string;
   plate?: string;
   vehicleModel?: string;
+  vehicleColor?: string;
   cnhNumber?: string;
 }
 
@@ -120,6 +142,7 @@ export interface ProfileUpdatePayload {
   workAddress?: string;
   plate?: string;
   vehicleModel?: string;
+  vehicleColor?: string;
   cnhNumber?: string;
   avatarFile?: File | null;
 }

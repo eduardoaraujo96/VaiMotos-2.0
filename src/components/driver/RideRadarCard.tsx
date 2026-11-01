@@ -14,7 +14,7 @@ export function RideRadarCard({ ride, onAccept }: RideRadarCardProps) {
       className="mb-3 rounded-2xl p-4"
       style={{
         background: 'var(--ion-card-background)',
-        border: '1px solid rgba(255,107,0,0.12)',
+        border: '1px solid rgba(21,209,100,0.12)',
       }}
     >
       <div className="mb-3 flex items-start justify-between">
@@ -28,7 +28,7 @@ export function RideRadarCard({ ride, onAccept }: RideRadarCardProps) {
       </div>
       <div className="mb-3 space-y-2 text-sm">
         <div className="flex gap-2">
-          <span className="mt-1 h-2 w-2 rounded-full" style={{ background: '#FF6B00' }} />
+          <span className="mt-1 h-2 w-2 rounded-full" style={{ background: '#15D164' }} />
           <span>{ride.origin.address}</span>
         </div>
         <div className="flex gap-2">

@@ -31,6 +31,7 @@ export function ProfileEditor() {
   const [workAddress, setWorkAddress] = useState(user?.workAddress ?? '');
   const [plate, setPlate] = useState(user?.plate ?? '');
   const [vehicleModel, setVehicleModel] = useState(user?.vehicleModel ?? '');
+  const [vehicleColor, setVehicleColor] = useState(user?.vehicleColor ?? '');
   const [cnhNumber, setCnhNumber] = useState(user?.cnhNumber ?? '');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,6 +58,7 @@ export function ProfileEditor() {
         workAddress,
         plate,
         vehicleModel,
+        vehicleColor,
         cnhNumber,
         avatarFile,
       });
@@ -145,6 +147,14 @@ export function ProfileEditor() {
             </IonItem>
             <IonItem className="rounded-2xl mb-2" lines="none">
               <IonInput
+                label="Cor da moto"
+                labelPlacement="stacked"
+                value={vehicleColor}
+                onIonInput={(e) => setVehicleColor(String(e.detail.value ?? ''))}
+              />
+            </IonItem>
+            <IonItem className="rounded-2xl mb-2" lines="none">
+              <IonInput
                 label="CNH"
                 labelPlacement="stacked"
                 value={cnhNumber}
@@ -155,6 +165,14 @@ export function ProfileEditor() {
               <IonLabel>Status do veiculo</IonLabel>
               <span className="text-sm font-semibold">
                 {user.vehicleStatus === 'active' ? 'Ativo' : 'Pendente'}
+              </span>
+            </IonItem>
+            <IonItem lines="none">
+              <IonLabel>Aprovação do cadastro</IonLabel>
+              <span className="text-sm font-semibold">
+                {user.driverApprovalStatus === 'approved'
+                  ? 'Aprovado'
+                  : user.driverApprovalStatus === 'rejected' ? 'Rejeitado' : 'Pendente'}
               </span>
             </IonItem>
             <IonItem lines="none">
@@ -172,6 +190,9 @@ export function ProfileEditor() {
       </IonButton>
       <IonButton className="mt-3" expand="block" fill="outline" color="danger" onClick={handleLogout}>
         Sair
+      </IonButton>
+      <IonButton className="mt-3" expand="block" fill="clear" onClick={() => history.push('/admin/drivers')}>
+        Área do Desenvolvedor
       </IonButton>
       <IonLoading isOpen={busy} message="Salvando..." />
       <IonToast isOpen={Boolean(toast)} message={toast} color="success" duration={1800} onDidDismiss={() => setToast('')} />

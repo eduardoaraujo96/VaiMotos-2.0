@@ -26,6 +26,7 @@ export async function createRideRequest(input: {
   estimatedPrice: number;
   estimatedMinutes: number;
   distanceKm: number;
+  paymentMethod: Ride['paymentMethod'];
 }): Promise<Ride> {
   if (!isValidLatLng(input.origin.lat, input.origin.lng) || !isValidLatLng(input.destination.lat, input.destination.lng)) {
     throw new AppError('invalid_coordinates', 'Escolha embarque e destino validos no mapa.');
@@ -47,6 +48,7 @@ export async function createRideRequest(input: {
     estimatedMinutes: input.estimatedMinutes,
     distanceKm: input.distanceKm,
     status: 'bidding',
+    paymentMethod: input.paymentMethod,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 90_000).toISOString(),
   };
@@ -95,8 +97,8 @@ export async function submitBid(input: {
     mockDrivers.find((item) => item.id === input.driver.id) ??
     ({
       rating: input.driver.rating,
-      color: '#FF6B00',
-      avatarUrl: input.driver.avatarUrl ?? avatarDataUri(input.driver.name, '#FF6B00'),
+      color: '#15D164',
+      avatarUrl: input.driver.avatarUrl ?? avatarDataUri(input.driver.name, '#15D164'),
     } as const);
 
   const existing = biddingStore
@@ -109,8 +111,8 @@ export async function submitBid(input: {
     driverId: input.driver.id,
     driverName: input.driver.name,
     driverRating: driverMeta.rating,
-    driverPhoto: driverMeta.avatarUrl ?? avatarDataUri(input.driver.name, '#FF6B00'),
-    driverColor: 'color' in driverMeta ? driverMeta.color : '#FF6B00',
+    driverPhoto: driverMeta.avatarUrl ?? avatarDataUri(input.driver.name, '#15D164'),
+    driverColor: 'color' in driverMeta ? driverMeta.color : '#15D164',
     amount: input.amount,
     etaMinutes: input.etaMinutes,
     status: 'pending',
@@ -170,21 +172,21 @@ export function listBidsForDriver(driverId: string): Bid[] {
 export async function loadOpenRides(): Promise<Ride[]> {
   if (!isSupabaseConfigured) return listOpenRides();
   const result = await fetchOpenRides();
-  if (!result.ok) return listOpenRides();
+  if (!result.ok) throw new AppError(result.error.code, result.error.message);
   return result.data;
 }
 
 export async function loadBidsForRide(rideId: string, viewer: User): Promise<Bid[]> {
   if (!isSupabaseConfigured) return listBidsForRide(rideId, viewer);
   const result = await fetchBidsForRide(rideId, viewer);
-  if (!result.ok) return listBidsForRide(rideId, viewer);
+  if (!result.ok) throw new AppError(result.error.code, result.error.message);
   return result.data;
 }
 
 export async function loadBidsForDriver(driverId: string): Promise<Bid[]> {
   if (!isSupabaseConfigured) return listBidsForDriver(driverId);
   const result = await fetchBidsForDriver(driverId);
-  if (!result.ok) return listBidsForDriver(driverId);
+  if (!result.ok) throw new AppError(result.error.code, result.error.message);
   return result.data;
 }
 
@@ -192,7 +194,6 @@ export async function loadRideById(rideId: string): Promise<Ride | null> {
   const local = biddingStore.snapshot().rides.find((ride) => ride.id === rideId) ?? null;
   if (!isSupabaseConfigured) return local;
   const result = await fetchRideById(rideId);
-  if (!result.ok) return local;
-  if (result.data) biddingStore.publish({ type: 'ride.updated', ride: result.data });
-  return result.data ?? local;
+  if (!result.ok) throw new AppError(result.error.code, result.error.message);
+  return result.data;
 }

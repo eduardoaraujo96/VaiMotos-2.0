@@ -37,8 +37,8 @@ export function AvatarPicker({ name, currentUrl, onFileChange }: AvatarPickerPro
         type="button"
         className="relative h-24 w-24 overflow-hidden rounded-full"
         style={{
-          background: 'linear-gradient(135deg, #FF6B00, #FF9A3D)',
-          boxShadow: '0 10px 24px rgba(255,107,0,0.28)',
+          background: 'linear-gradient(135deg, #15D164, #2BD673)',
+          boxShadow: '0 10px 24px rgba(21,209,100,0.28)',
         }}
         onClick={() => inputRef.current?.click()}
       >

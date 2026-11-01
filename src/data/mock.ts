@@ -22,8 +22,8 @@ export const mockDriver: DriverProfile = {
   isOnline: true,
   todayEarnings: 186.5,
   todayRides: 9,
-  color: '#FF6B00',
-  avatarUrl: avatarDataUri('Carlos Mendes', '#FF6B00'),
+  color: '#15D164',
+  avatarUrl: avatarDataUri('Carlos Mendes', '#15D164'),
 };
 
 export const mockDrivers: DriverProfile[] = [
@@ -95,6 +95,7 @@ function ride(
     estimatedMinutes,
     distanceKm,
     status: 'bidding',
+    paymentMethod: 'to_agree',
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 90_000).toISOString(),
   };
@@ -155,6 +156,7 @@ export const mockRideHistory: Ride[] = [
     estimatedMinutes: 10,
     distanceKm: 2.6,
     finalPrice: 12.4,
+    paymentMethod: 'to_agree',
     status: 'completed',
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     expiresAt: new Date(Date.now() - 86400000).toISOString(),

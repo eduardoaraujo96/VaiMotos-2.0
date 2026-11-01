@@ -1,11 +1,11 @@
-import { IonButton, IonIcon, IonInput, IonItem, IonSpinner } from '@ionic/react';
-import { checkmarkCircleOutline, flashOutline, locateOutline, navigateOutline } from 'ionicons/icons';
+import { IonButton, IonIcon, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonSpinner } from '@ionic/react';
+import { checkmarkCircleOutline, chevronDownOutline, chevronUpOutline, flashOutline, locateOutline, navigateOutline } from 'ionicons/icons';
+import type { LocationPoint, RidePaymentMethod } from '../../types';
+import { PlaceSearch } from './PlaceSearch';
 
 interface RideRequestCardProps {
   origin: string;
   destination: string;
-  onOriginChange: (value: string) => void;
-  onDestinationChange: (value: string) => void;
   onOriginFocus?: () => void;
   onDestinationFocus?: () => void;
   onUseGps?: () => void;
@@ -19,13 +19,17 @@ interface RideRequestCardProps {
   gpsLoading?: boolean;
   pickupConfirmed?: boolean;
   activeField?: 'origin' | 'destination';
+  paymentMethod: RidePaymentMethod;
+  onPaymentMethodChange: (method: RidePaymentMethod) => void;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  currentLocation?: { lat: number; lng: number } | null;
+  onPlaceSelect: (point: LocationPoint) => void;
 }
 
 export function RideRequestCard({
   origin,
   destination,
-  onOriginChange,
-  onDestinationChange,
   onOriginFocus,
   onDestinationFocus,
   onUseGps,
@@ -39,20 +43,50 @@ export function RideRequestCard({
   gpsLoading = false,
   pickupConfirmed = false,
   activeField = 'origin',
+  paymentMethod,
+  onPaymentMethodChange,
+  expanded,
+  onExpandedChange,
+  currentLocation,
+  onPlaceSelect,
 }: RideRequestCardProps) {
   const requestEnabled = (canRequest ?? Boolean(destination.trim())) && !busy;
 
   return (
     <div
-      className="rounded-3xl p-4 safe-bottom"
+      className={`vaimoto-ride-sheet rounded-3xl safe-bottom ${expanded ? 'vaimoto-ride-sheet--expanded' : 'vaimoto-ride-sheet--compact'}`}
       style={{
         background: 'var(--ion-card-background)',
         boxShadow: '0 -12px 40px rgba(15,15,20,0.18)',
       }}
     >
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--ion-color-medium)' }}>
-        Para onde vamos?
+      <div className="flex items-center justify-between gap-3 px-1 pb-2">
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Painel de destino aberto' : 'Painel de destino fechado'}
+          onClick={() => onExpandedChange(!expanded)}
+        >
+          <div className="text-sm font-bold">Pra onde vamos?</div>
+          <div className="truncate text-xs" style={{ color: 'var(--ion-color-medium)' }}>
+            {destination || 'Escolha o embarque e o destino'}
+          </div>
+        </button>
+        <IonButton
+          fill={expanded ? 'clear' : 'solid'}
+          size="small"
+          aria-label={expanded ? 'Fechar painel' : 'Abrir painel'}
+          onClick={() => onExpandedChange(!expanded)}
+        >
+          <IonIcon slot="start" icon={expanded ? chevronDownOutline : chevronUpOutline} />
+          {expanded ? 'Fechar' : 'Abrir'}
+        </IonButton>
       </div>
+
+      {expanded && (
+      <div className="vaimoto-ride-sheet__body">
+      <PlaceSearch currentLocation={currentLocation} onSelect={onPlaceSelect} />
       <IonItem
         lines="none"
         className="rounded-2xl mb-2"
@@ -65,8 +99,11 @@ export function RideRequestCard({
         <IonInput
           value={origin}
           placeholder="Ponto de embarque"
-          onIonFocus={() => onOriginFocus?.()}
-          onIonInput={(e) => onOriginChange(String(e.detail.value ?? ''))}
+          readonly
+          onIonFocus={() => {
+            onExpandedChange(true);
+            onOriginFocus?.();
+          }}
         />
         {onUseGps && (
           <IonButton slot="end" fill="clear" onClick={onUseGps} disabled={gpsLoading}>
@@ -86,12 +123,15 @@ export function RideRequestCard({
         <IonInput
           value={destination}
           placeholder="Destino"
-          onIonFocus={() => onDestinationFocus?.()}
-          onIonInput={(e) => onDestinationChange(String(e.detail.value ?? ''))}
+          readonly
+          onIonFocus={() => {
+            onExpandedChange(true);
+            onDestinationFocus?.();
+          }}
         />
       </IonItem>
       <p className="mb-3 px-1 text-[11px]" style={{ color: 'var(--ion-color-medium)' }}>
-        Mapa inicia em Matões, MA. Use Minha localização, busque um endereço ou toque no mapa. Sem GPS, a escolha manual continua liberada.
+        Busque pelo nome ou escolha o local diretamente no mapa. A área inicial é Matões — MA.
       </p>
       {estimatedPrice !== undefined && (
         <div className="mb-3 flex items-center justify-between px-1">
@@ -107,6 +147,18 @@ export function RideRequestCard({
           {approximateDistance}
         </div>
       )}
+      <IonItem lines="none" className="mb-2 rounded-2xl" style={{ '--background': 'var(--ion-background-color)' }}>
+        <IonLabel>Pagamento</IonLabel>
+        <IonSelect
+          value={paymentMethod}
+          aria-label="Forma de pagamento"
+          onIonChange={(event) => onPaymentMethodChange(event.detail.value as RidePaymentMethod)}
+        >
+          <IonSelectOption value="to_agree">A combinar</IonSelectOption>
+          <IonSelectOption value="cash">Dinheiro</IonSelectOption>
+          <IonSelectOption value="pix">Pix</IonSelectOption>
+        </IonSelect>
+      </IonItem>
       {onConfirmPickup && !pickupConfirmed && (
         <IonButton expand="block" fill="outline" className="mb-2" onClick={onConfirmPickup} disabled={!origin.trim()}>
           <IonIcon icon={checkmarkCircleOutline} slot="start" />
@@ -114,7 +166,7 @@ export function RideRequestCard({
         </IonButton>
       )}
       {pickupConfirmed && (
-        <div className="mb-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(0,200,83,0.12)', color: '#00C853' }}>
+        <div className="mb-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(var(--vaimoto-primary-rgb),0.12)', color: 'var(--vaimoto-primary)' }}>
           Embarque confirmado
         </div>
       )}
@@ -122,6 +174,8 @@ export function RideRequestCard({
         <IonIcon icon={flashOutline} slot="start" />
         {busy ? 'Solicitando...' : 'Pedir Mototaxi'}
       </IonButton>
+      </div>
+      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ export function SignupPage() {
   const [workAddress, setWorkAddress] = useState('');
   const [plate, setPlate] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleColor, setVehicleColor] = useState('');
   const [cnhNumber, setCnhNumber] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -77,6 +78,7 @@ export function SignupPage() {
         workAddress,
         plate,
         vehicleModel,
+        vehicleColor,
         cnhNumber,
       });
       history.replace(user.role === 'driver' ? '/driver' : '/passenger');
@@ -117,7 +119,7 @@ export function SignupPage() {
           <div
             className="mt-3 rounded-2xl px-3 py-2 text-xs font-semibold"
             style={{
-              background: role === 'driver' ? 'rgba(255,107,0,0.12)' : 'rgba(26,26,46,0.08)',
+              background: role === 'driver' ? 'rgba(21,209,100,0.12)' : 'rgba(26,26,46,0.08)',
             }}
           >
             {role === 'driver'
@@ -201,6 +203,15 @@ export function SignupPage() {
                   placeholder="Honda CG 160"
                   value={vehicleModel}
                   onIonInput={(e) => setVehicleModel(String(e.detail.value ?? ''))}
+                />
+              </IonItem>
+              <IonItem className="mt-3 rounded-2xl" lines="none">
+                <IonInput
+                  label="Cor da moto (opcional)"
+                  labelPlacement="stacked"
+                  placeholder="Preta"
+                  value={vehicleColor}
+                  onIonInput={(e) => setVehicleColor(String(e.detail.value ?? ''))}
                 />
               </IonItem>
               <IonItem className="mt-3 rounded-2xl" lines="none">
