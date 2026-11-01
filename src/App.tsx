@@ -9,6 +9,7 @@ import { PassengerTabs } from './layouts/PassengerTabs';
 import { DriverTabs } from './layouts/DriverTabs';
 import { RideTrip } from './pages/shared/RideTrip';
 import { DriverApprovals } from './pages/admin/DriverApprovals';
+import { PushNotificationManager } from './components/shared/PushNotificationManager';
 
 setupIonicReact({ mode: 'md' });
 
@@ -18,6 +19,7 @@ function AppRoutes() {
 
   return (
     <IonReactRouter>
+      <PushNotificationManager />
       <IonRouterOutlet>
         <Route exact path="/login">
           {isAuthenticated ? <Redirect to={home} /> : <LoginPage />}

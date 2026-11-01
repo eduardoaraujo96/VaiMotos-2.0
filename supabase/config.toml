@@ -1,0 +1,2 @@
+[functions.send-ride-push]
+verify_jwt = false

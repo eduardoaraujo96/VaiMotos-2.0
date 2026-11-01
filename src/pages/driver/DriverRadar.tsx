@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import {
   IonBadge,
   IonButton,
@@ -27,6 +27,7 @@ import {
   unlockRideNotificationAudio,
 } from '../../services/rideNotifications';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
+import { requestDriverPushPermission } from '../../services/pushNotifications';
 import { formatBRL } from '../../utils/format';
 import { formatApproxKm, haversineKm, isValidLatLng } from '../../utils/geo';
 import type { Ride } from '../../types';
@@ -34,6 +35,7 @@ import type { Ride } from '../../types';
 export function DriverRadar() {
   const { user, setDriverOnline } = useAuth();
   const history = useHistory();
+  const location = useLocation();
   const { dark, toggle } = useThemeMode();
   const { rides, makeOffer, driverBids, error } = useBidding({ viewer: user });
   const online = Boolean(user?.isOnline);
@@ -60,15 +62,29 @@ export function DriverRadar() {
   const notifiedRideIds = useRef(new Set<string>());
   const pendingAlerts = useRef<string[]>([]);
   const driverApproved = user?.role === 'driver' && user.driverApprovalStatus === 'approved';
-  const availableRides = rides.filter((ride) =>
-    ride.status === 'bidding'
-    && Date.parse(ride.expiresAt) > Date.now()
-    && !driverBids.some((bid) => bid.rideId === ride.id)
+  const availableRides = useMemo(
+    () => rides.filter((ride) =>
+      ride.status === 'bidding'
+      && Date.parse(ride.expiresAt) > Date.now()
+      && !driverBids.some((bid) => bid.rideId === ride.id)
+    ),
+    [driverBids, rides]
   );
   pendingAlerts.current = availableRides
     .map((ride) => ride.id)
     .filter((rideId) => notifiedRideIds.current.has(rideId));
   const availableRidesKey = availableRides.map((ride) => ride.id).join('|');
+
+  useEffect(() => {
+    const rideId = new URLSearchParams(location.search).get('ride_id');
+    const ride = rideId ? availableRides.find((item) => item.id === rideId) : undefined;
+    if (ride) {
+      setHighlightedId(ride.id);
+      if (isValidLatLng(ride.origin.lat, ride.origin.lng)) {
+        setTargetCenter({ lat: ride.origin.lat, lng: ride.origin.lng });
+      }
+    }
+  }, [availableRides, location.search]);
 
   useEffect(() => {
     activeRef.current = true;
@@ -177,14 +193,22 @@ export function DriverRadar() {
   };
 
   const toggleOnline = async () => {
+    if (availabilityBusy) return;
     unlockRideNotificationAudio();
-    if (online) {
-      stopRideNotificationSound();
-      setHighlightedId(null);
-      setTargetCenter(null);
-    }
     setAvailabilityBusy(true);
     try {
+      if (!online) {
+        const permission = await requestDriverPushPermission();
+        if (permission === 'denied') {
+          setToast('Permita notificações nas configurações do Android para receber corridas com o app fechado.');
+          return;
+        }
+      }
+      if (online) {
+        stopRideNotificationSound();
+        setHighlightedId(null);
+        setTargetCenter(null);
+      }
       await setDriverOnline(!online);
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : 'Não foi possível atualizar sua disponibilidade.');

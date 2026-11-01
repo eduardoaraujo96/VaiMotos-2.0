@@ -120,6 +120,11 @@ export interface Database {
       ride_messages: { Row: RideMessageRow; Insert: Partial<RideMessageRow> & { ride_id: string; sender_id: string; message: string }; Update: Partial<RideMessageRow> };
       ride_reviews: { Row: RideReviewRow; Insert: Partial<RideReviewRow> & { ride_id: string; reviewer_id: string; reviewed_user_id: string; rating: number }; Update: Partial<RideReviewRow> };
       driver_approval_admins: { Row: { user_id: string; created_at: string }; Insert: { user_id: string }; Update: never };
+      driver_push_tokens: {
+        Row: { token: string; driver_id: string; device_id: string; platform: 'android'; created_at: string; updated_at: string };
+        Insert: { token: string; driver_id: string; device_id: string; platform?: 'android' };
+        Update: Partial<{ token: string; driver_id: string; device_id: string; platform: 'android'; updated_at: string }>;
+      };
     };
     Functions: {
       accept_bid: { Args: { p_bid_id: string }; Returns: RideRow };

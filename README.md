@@ -96,8 +96,57 @@ and the app is in the foreground. The first interaction with the online control
 prepares audio playback to comply with browser autoplay restrictions. A pending
 request can repeat its alert at most every 30 seconds; responding, going
 offline, or leaving the foreground stops further alerts. This repository does
-not include a push-notification plugin or server-side push sender, so sound
-alerts do not run while the app is backgrounded or closed.
+not play that sound while the app is backgrounded or closed.
+
+## Driver push notifications (Android)
+
+Push notifications use the Capacitor Push Notifications plugin and Firebase
+Cloud Messaging (FCM). Apply
+`supabase/migrations/20261103_driver_push_notifications.sql` in the Supabase
+SQL Editor after the migrations above. It adds device-token storage protected
+by driver-only RLS and a server-only delivery ledger; it does not replace the
+existing ride/chat tables.
+
+Configure Firebase and Supabase before testing on a physical Android device:
+
+1. In Firebase, register an Android app with package ID `com.vaimotos.app`,
+   enable Cloud Messaging, and download `google-services.json` to
+   `android/app/google-services.json`. Do not commit this file.
+2. Create/deploy the Edge Function with the Supabase CLI:
+   `supabase functions deploy send-ride-push`. The included
+   `supabase/config.toml` disables Supabase JWT verification for this endpoint;
+   the function instead requires a private webhook header.
+3. In **Supabase Dashboard → Edge Functions → Secrets**, set
+   `FIREBASE_SERVICE_ACCOUNT` to the complete Firebase service-account JSON
+   and `PUSH_WEBHOOK_SECRET` to a long random secret. Never put either value in
+   the app, SQL migration, or repository.
+4. In **Supabase Dashboard → Database → Webhooks**, create two `rides` webhooks
+   pointing to
+   `https://<PROJECT_REF>.supabase.co/functions/v1/send-ride-push`. Add the
+   header `x-vaimoto-push-secret` with the same `PUSH_WEBHOOK_SECRET` value.
+   Configure one for `INSERT` (the function only sends for `bidding` rides)
+   and the other for `UPDATE` (the function only sends for `cancelled` rides).
+   The cancellation webhook should include the new row. Repeated updates are
+   safe: each delivered device/ride/event is tracked in
+   `ride_push_targets`.
+5. Rebuild and install the Android app so the plugin, manifest permission, and
+   Firebase configuration are included:
+   `npm run build`, `npx cap sync android`, then build/install from Android
+   Studio. The Android 13+ notification permission prompt appears when a
+   driver explicitly taps **Ficar online**. If permission is denied, the driver
+   remains offline and is directed to Android settings.
+
+The function sends a high-priority FCM notification only to registered devices
+belonging to approved, online drivers who have not offered on that ride. Clicking
+it opens the matching radar request after it is loaded from Supabase. A
+cancellation is sent with the same Android notification tag, replacing that
+ride's request alert; if the app is active, it also removes the delivered alert
+locally. Android does not expose a server API to silently retract an already
+delivered notification while the app is force-stopped, so the cancellation
+notification replaces the request rather than disappearing without explanation.
+Force-stop, disabled Android notifications, device connectivity, and battery
+restrictions can delay delivery; an Android device and valid Firebase/Supabase
+configuration are required to verify background delivery.
 
 ## Passenger place search
 

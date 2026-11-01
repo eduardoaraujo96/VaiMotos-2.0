@@ -5,6 +5,7 @@ import { logout as logoutService, restoreSession, signIn, signUp, updateCurrentU
 import { fetchProfileById, subscribeToDriverApproval, updateDriverAvailability } from '../services/supabaseService';
 import { persistUser } from '../services/authStorage';
 import { isSupabaseConfigured } from '../services/supabaseClient';
+import { clearDriverPushRegistration } from '../services/pushNotifications';
 
 interface AuthContextValue {
   user: User | null;
@@ -88,9 +89,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const logout = useCallback(async () => {
+    if (user?.role === 'driver') {
+      if (user.isOnline) {
+        try {
+          await setDriverOnline(false);
+        } catch (error) {
+          console.error('Não foi possível marcar o motorista como offline ao sair:', error);
+        }
+      }
+      try {
+        await clearDriverPushRegistration(user.id);
+      } catch (error) {
+        console.error('Não foi possível remover o registro push do dispositivo ao sair:', error);
+      }
+    }
     await logoutService();
     setUser(null);
-  }, []);
+  }, [setDriverOnline, user]);
 
   const value = useMemo(
     () => ({
